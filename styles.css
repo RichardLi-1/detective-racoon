@@ -386,9 +386,30 @@ body.loading #game {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 40px;
+  gap: 16px;
   pointer-events: auto;
   z-index: 10;
+}
+
+#old-portfolio-link {
+  position: fixed;
+  top: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: auto;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 20px;
+  font-weight: 400;
+  color: #ffe9b3;
+  opacity: 0.5;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+
+#old-portfolio-link:hover {
+  opacity: 0.9;
 }
 
 .middle-nav-link {
