@@ -80,6 +80,8 @@ let chatTimerId = null; // auto-hide timer for chat bubble
 let canGoUpstairs = false; // track if raccoon can go upstairs
 let canGoDownstairs = false; // track if raccoon can go downstairs
 let hasStartedMoving = false; // track if user has started moving
+let autoWalkTargetX = null; // scripted walk: raccoon walks itself to this world x
+let autoWalkDone = null; // resolves the scripted walk on arrival
 let overlayOpen = false; // inventory open state
 let fatherFigureOverlayOpen = false; // father figure overlay state
 let sceneTransitioning = false; // flag to prevent suitcase showing during transitions
@@ -164,6 +166,22 @@ function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
+// Show a chat bubble above the raccoon, auto-hiding after ms
+function sayLine(text, ms) {
+  if (chatTimerId) { clearTimeout(chatTimerId); chatTimerId = null; }
+  chatEl.textContent = text;
+  show(chatEl);
+  placeChatAtWorld(racX, racY - 220);
+  chatTimerId = setTimeout(() => {
+    hide(chatEl);
+    chatTimerId = null;
+  }, ms);
+}
+// Scripted walk: raccoon walks itself to world x, resolving on arrival
+function walkTo(x) {
+  return new Promise(resolve => { autoWalkTargetX = x; autoWalkDone = resolve; });
+}
+function cancelWalk() { autoWalkTargetX = null; autoWalkDone = null; }
 function setRaccoonImage(src) { 
   if (!racEl || !src) return;
   
@@ -908,7 +926,8 @@ async function enterInside() {
 
 function tryEnterHouse() {
   if (scene !== 'outside' || !canInteract) return;
-  
+  cancelWalk();
+
   // Play door sound when entering house
   playSound(doorSound);
   
@@ -2121,6 +2140,13 @@ function tick(ts) {
     // Note: touchState.down removed (down button no longer exists)
   }
 
+  // Scripted walk overrides horizontal input until the raccoon arrives
+  if (autoWalkTargetX !== null) {
+    const dx = autoWalkTargetX - racX;
+    if (Math.abs(dx) > CONFIG.raccoon.speed * dt) vx = Math.sign(dx);
+    else { const done = autoWalkDone; cancelWalk(); done?.(); }
+  }
+
   const moving = !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen && (vx !== 0 || vControl !== 0 || !onGround || vy !== 0);
   setRaccoonImage(moving ? CONFIG.raccoon.walkSrc : CONFIG.raccoon.idleSrc);
 
@@ -2138,7 +2164,7 @@ function tick(ts) {
   }
 
   // Hide movement instructions when user starts moving
-  if (moving && !hasStartedMoving) {
+  if (moving && !hasStartedMoving && autoWalkTargetX === null) {
     hasStartedMoving = true;
     if (movementInstructionsEl) {
       movementInstructionsEl.style.opacity = '0';
@@ -2547,8 +2573,13 @@ async function startGame() {
     setRaccoonImage(CONFIG.raccoon.idleSrc);
 
     await enterOutside();
+
+    // First load: raccoon walks itself into the house
+    sayLine('its been a long day', 2600);
+    walkTo(doorWorld.x).then(tryEnterHouse);
+
     requestAnimationFrame(tick);
-    
+
     // build overlay UI once DOM is ready
     createSuitcaseUI();
     createAboutMeOverlay();
