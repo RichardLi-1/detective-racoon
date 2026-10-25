@@ -53,7 +53,7 @@ const CONFIG = {
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
     guests: [
       { name: 'kaylin', img: 'assets/guest-kaylin.webp' },
-      { name: 'person 2', says: 'surprise!!' },
+      { name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!' },
       { name: 'person 3' },
       { name: 'person 4', says: 'happy birthday!' },
       { name: 'person 5' },
