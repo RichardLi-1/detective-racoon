@@ -71,6 +71,7 @@ const CONFIG = {
       },
       {
         name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!',
+        photos: Array.from({ length: 6 }, (_, i) => `assets/photos/catharine-${i + 1}.webp`).concat('assets/photos/catharine-video.mp4'),
         idle: ['fiona i missed u soooooooooo much........... <3', 'fiona i missed u soooooooooo much........... <3', 'i planned this whole thing btw', 'who ate the last slice.', 'smile for the photo. NOW.'],
       },
       {
