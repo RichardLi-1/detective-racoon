@@ -55,6 +55,8 @@ const CONFIG = {
     startMessage: 'assets/audio/message.m4a',
     // Lucas's face glitches across the whole screen every so often after the surprise
     glitchImage: 'assets/photos/lucas-glitch.webp',
+    // Camera click for the paparazzi flashes
+    shutter: 'assets/audio/shutter.m4a',
     // Party guests who jump out when the lights come on. Placeholders for now:
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
     // Optional `depth` (0 = front row, 1 = back row) overrides the crowd's row pattern.
@@ -1223,41 +1225,27 @@ function closeWish() {
 // (a short burst of filtered noise) and a quick white blink. A frenzy first, then the odd flash.
 let shutterCtx = null;
 
+let shutterBuffer = null;
+
+// Real camera click (assets/audio/shutter.m4a), decoded once and played through Web Audio
+// so rapid-fire flashes can overlap without lag
 function shutterSound() {
   try {
     shutterCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = shutterCtx, now = ctx.currentTime;
-    // Phone-camera style "ch-chk": a bright click then a lower one ~70ms later,
-    // each a band-passed noise snap plus a tiny tonal tick
-    const click = (t, freq, tone, vol) => {
-      const len = Math.floor(ctx.sampleRate * 0.035);
-      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.12));
-      const noise = ctx.createBufferSource();
-      noise.buffer = buf;
-      const band = ctx.createBiquadFilter();
-      band.type = 'bandpass';
-      band.frequency.value = freq;
-      band.Q.value = 1.4;
-      const ng = ctx.createGain();
-      ng.gain.value = vol;
-      noise.connect(band).connect(ng).connect(ctx.destination);
-      noise.start(now + t);
-
-      const osc = ctx.createOscillator();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(tone, now + t);
-      osc.frequency.exponentialRampToValueAtTime(tone * 0.5, now + t + 0.02);
-      const og = ctx.createGain();
-      og.gain.setValueAtTime(vol * 0.25, now + t);
-      og.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.025);
-      osc.connect(og).connect(ctx.destination);
-      osc.start(now + t);
-      osc.stop(now + t + 0.03);
-    };
-    click(0, 4200, 1900, 0.9);
-    click(0.07, 2600, 1100, 0.75);
+    const ctx = shutterCtx;
+    if (!shutterBuffer) {
+      shutterBuffer = fetch(versionedAsset(CONFIG.surprise.shutter))
+        .then(r => r.arrayBuffer())
+        .then(b => ctx.decodeAudioData(b));
+    }
+    shutterBuffer.then(buf => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.8;
+      src.connect(gain).connect(ctx.destination);
+      src.start();
+    }).catch(() => {});
   } catch { /* no audio, flashes still work */ }
 }
 
