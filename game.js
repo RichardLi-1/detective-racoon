@@ -52,7 +52,7 @@ const CONFIG = {
     // Party guests who jump out when the lights come on. Placeholders for now:
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
     guests: [
-      { name: 'person 1' },
+      { name: 'kaylin', img: 'assets/guest-kaylin.webp' },
       { name: 'person 2', says: 'surprise!!' },
       { name: 'person 3' },
       { name: 'person 4', says: 'happy birthday!' },
