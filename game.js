@@ -54,7 +54,7 @@ const CONFIG = {
     guests: [
       { name: 'kaylin', img: 'assets/guest-kaylin.webp' },
       { name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!' },
-      { name: 'person 3' },
+      { name: 'michele', img: 'assets/guest-michele.webp' },
       { name: 'person 4', says: 'happy birthday!' },
       { name: 'person 5' },
     ],
