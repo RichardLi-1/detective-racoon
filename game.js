@@ -1247,7 +1247,7 @@ function shutterSound() {
       const src = ctx.createBufferSource();
       src.buffer = buf;
       const gain = ctx.createGain();
-      gain.gain.value = 0.8;
+      gain.gain.value = 0.15; // keep the clicks in the background
       src.connect(gain).connect(ctx.destination);
       src.start();
     }).catch(() => {});
