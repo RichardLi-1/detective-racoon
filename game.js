@@ -975,9 +975,10 @@ async function playSurpriseIntro() {
   cutscenePlaying = false;
 }
 
-// The surprise: a little shake (characters get added here later)
+// The surprise: a little shake + confetti (characters get added here later)
 async function startSurprise() {
   shakeScreen();
+  launchConfetti();
 }
 
 function shakeScreen() {
@@ -985,6 +986,83 @@ function shakeScreen() {
   void gameEl.offsetWidth; // restart the animation if it's already applied
   gameEl.classList.add('shake');
   setTimeout(() => gameEl.classList.remove('shake'), 500);
+}
+
+// -------- Confetti --------
+const CONFETTI_COLORS = ['#ffe9b3', '#f4b942', '#e8743b', '#d94f4f', '#6fb8d9', '#8bc34a', '#c78ee0'];
+
+// Two cannons fire from the bottom corners; pieces flutter down and the canvas removes itself
+function launchConfetti(count = 180) {
+  const canvas = document.createElement('canvas');
+  canvas.id = 'confetti';
+  gameEl.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const { w, h } = viewportSize();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.scale(dpr, dpr);
+
+  const pieces = [];
+  for (let i = 0; i < count; i++) {
+    const fromLeft = i % 2 === 0;
+    const angle = ((fromLeft ? -62 : -118) + (Math.random() - 0.5) * 36) * Math.PI / 180;
+    const speed = 1800 + Math.random() * 1500;
+    pieces.push({
+      x: fromLeft ? -10 : w + 10,
+      y: h + 10,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      w: 7 + Math.random() * 6,
+      h: 11 + Math.random() * 8,
+      rot: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 10,
+      flip: Math.random() * Math.PI * 2,
+      flipSpeed: 6 + Math.random() * 8,
+      sway: Math.random() * Math.PI * 2,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    });
+  }
+
+  const gravity = 900;
+  const drag = 3; // per second; terminal fall speed = gravity / drag
+  const lifeMs = 6000;
+  const start = performance.now();
+  let last = start;
+
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    const elapsed = now - start;
+    const damp = Math.exp(-drag * dt);
+    ctx.clearRect(0, 0, w, h);
+    // Fade everything out over the last second
+    ctx.globalAlpha = clamp((lifeMs - elapsed) / 1000, 0, 1);
+
+    let alive = 0;
+    for (const p of pieces) {
+      p.vx *= damp;
+      p.vy = p.vy * damp + gravity * dt;
+      p.sway += dt * 3;
+      p.x += (p.vx + Math.sin(p.sway) * 40) * dt;
+      p.y += p.vy * dt;
+      p.rot += p.spin * dt;
+      p.flip += p.flipSpeed * dt;
+      if (p.y > h + 30) continue;
+      alive++;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.scale(1, Math.cos(p.flip)); // paper-flip shimmer
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+
+    if (alive > 0 && elapsed < lifeMs) requestAnimationFrame(frame);
+    else canvas.remove();
+  }
+  requestAnimationFrame(frame);
 }
 
 function tryExitHouse() {

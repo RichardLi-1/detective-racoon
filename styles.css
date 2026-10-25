@@ -307,6 +307,16 @@ body.loading #game {
   #game.shake { animation: none; }
 }
 
+/* Surprise confetti: above the scene and UI, below the fade */
+#confetti {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 7;
+}
+
 /* World layer: background and raccoon live here */
 #world {
   position: absolute;
