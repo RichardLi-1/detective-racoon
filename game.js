@@ -975,8 +975,17 @@ async function playSurpriseIntro() {
   cutscenePlaying = false;
 }
 
-// Placeholder: the characters jump out here once they're added
-async function startSurprise() {}
+// The surprise: a little shake (characters get added here later)
+async function startSurprise() {
+  shakeScreen();
+}
+
+function shakeScreen() {
+  gameEl.classList.remove('shake');
+  void gameEl.offsetWidth; // restart the animation if it's already applied
+  gameEl.classList.add('shake');
+  setTimeout(() => gameEl.classList.remove('shake'), 500);
+}
 
 function tryExitHouse() {
   console.log('tryExitHouse called - Scene:', scene, 'canInteract:', canInteract, 'Overlays:', {

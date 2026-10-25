@@ -292,6 +292,21 @@ body.loading #game {
   );
 }
 
+/* Surprise: a little screen shake (slight zoom hides the edges while it moves) */
+#game.shake {
+  animation: surprise-shake 0.5s ease-out;
+}
+@keyframes surprise-shake {
+  0%, 100% { transform: none; }
+  15% { transform: translate(-6px, 3px) rotate(-0.4deg) scale(1.015); }
+  35% { transform: translate(5px, -3px) rotate(0.3deg) scale(1.015); }
+  55% { transform: translate(-4px, 2px) scale(1.01); }
+  75% { transform: translate(2px, -1px) scale(1.005); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #game.shake { animation: none; }
+}
+
 /* World layer: background and raccoon live here */
 #world {
   position: absolute;
