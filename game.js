@@ -470,6 +470,12 @@ function distance(a, b) {
   return Math.hypot(dx, dy);
 }
 
+// Distance from the raccoon's feet to a hotspot measured at floor level, so the taller
+// worlds on big screens don't lift the door/exit hotspot out of the raccoon's reach
+function floorDistanceTo(hotspot) {
+  return distance({ x: racX, y: racY }, { x: hotspot.x, y: getGroundY() });
+}
+
 function fadeOutIn(cb) {
   console.log('fadeOutIn called with callback:', !!cb);
   show(fadeEl);
@@ -929,6 +935,12 @@ async function enterInside() {
 
 function tryEnterHouse() {
   if (scene !== 'outside' || !canInteract) return;
+  enterHouse();
+}
+
+// Door transition into the house; the intro walk calls this directly once it reaches the door
+function enterHouse() {
+  if (scene !== 'outside' || sceneTransitioning) return;
   cancelWalk();
 
   // Play door sound when entering house
@@ -1275,7 +1287,7 @@ function closeInventory() {
   // Check if we're near the exit after closing inventory
   if (scene === 'inside') {
     const e = CONFIG.inside.exit;
-    const exitDist = distance({ x: racX, y: racY }, exitWorld);
+    const exitDist = floorDistanceTo(exitWorld);
     const nearExit = e ? exitDist <= e.radius : false;
 
     if (nearExit) {
@@ -2323,7 +2335,14 @@ function tick(ts) {
   if (autoWalkTargetX !== null) {
     const dx = autoWalkTargetX - racX;
     if (Math.abs(dx) > CONFIG.raccoon.speed * dt) vx = Math.sign(dx);
-    else { const done = autoWalkDone; cancelWalk(); done?.(); }
+    else {
+      // Snap onto the target so a long frame (e.g. returning from a background tab) can't stop short
+      racX = autoWalkTargetX;
+      placeRaccoon();
+      const done = autoWalkDone;
+      cancelWalk();
+      done?.();
+    }
   }
 
   const moving = !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen && (vx !== 0 || vControl !== 0 || !onGround || vy !== 0);
@@ -2393,7 +2412,7 @@ function tick(ts) {
 
   // Interaction visibility
   if (scene === 'outside') {
-    const dist = distance({ x: racX, y: racY }, doorWorld);
+    const dist = floorDistanceTo(doorWorld);
     const near = dist <= CONFIG.outside.door.radius;
     if (near && !canInteract) { canInteract = true; show(interactBtn); }
     else if (!near && canInteract) { canInteract = false; hide(interactBtn); }
@@ -2403,7 +2422,7 @@ function tick(ts) {
     }
   } else if (scene === 'inside') {
     const e = CONFIG.inside.exit;
-    const dist = distance({ x: racX, y: racY }, exitWorld);
+    const dist = floorDistanceTo(exitWorld);
     const near = e && !cutscenePlaying ? dist <= e.radius : false;
     if (near && !canInteract) { canInteract = true; show(interactBtn); }
     else if (!near && canInteract) { canInteract = false; hide(interactBtn); }
@@ -2438,7 +2457,7 @@ function tick(ts) {
           canOpenSuitcase = false;
           // Hide briefcase prompt if not near exit either
           const e = CONFIG.inside.exit;
-          const exitDist = distance({ x: racX, y: racY }, exitWorld);
+          const exitDist = floorDistanceTo(exitWorld);
           const nearExit = e ? exitDist <= e.radius : false;
           if (canInteract && !nearExit) {
             canInteract = false;
@@ -2755,7 +2774,7 @@ async function startGame() {
 
     // First load: raccoon walks itself into the house
     sayLine('its been a long day', 2600);
-    walkTo(doorWorld.x).then(tryEnterHouse);
+    walkTo(doorWorld.x).then(enterHouse);
 
     requestAnimationFrame(tick);
 
