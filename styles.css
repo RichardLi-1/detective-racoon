@@ -2479,14 +2479,14 @@ body.overlay-open #touch-controls {
   50% { transform: scale(1.06); }
 }
 
-/* Lucas glitch: full-screen face flash with RGB split + slice jitter */
+/* Lucas: his face flashes across the whole screen for a moment */
 #lucas-glitch {
   position: fixed;
   inset: 0;
   z-index: 100000;
   pointer-events: none;
   background: #000;
-  animation: glitch-flicker 0.42s steps(1) forwards;
+  animation: face-flash 0.42s ease-out forwards;
 }
 .glitch-layer {
   position: absolute;
@@ -2494,27 +2494,8 @@ body.overlay-open #touch-controls {
   background-size: cover;
   background-position: center;
 }
-.glitch-layer.r { mix-blend-mode: screen; filter: url(#none) sepia(1) saturate(8) hue-rotate(-50deg); animation: glitch-shift 0.12s steps(2) infinite; opacity: 0.8; }
-.glitch-layer.g { mix-blend-mode: screen; filter: sepia(1) saturate(8) hue-rotate(60deg); animation: glitch-shift 0.09s steps(2) infinite reverse; opacity: 0.6; }
-.glitch-layer.b { mix-blend-mode: screen; filter: sepia(1) saturate(8) hue-rotate(180deg); animation: glitch-slice 0.1s steps(3) infinite; opacity: 0.7; }
-.glitch-layer.base { animation: glitch-slice 0.14s steps(2) infinite; opacity: 0.85; }
-@keyframes glitch-shift {
-  0% { transform: translate(-14px, 3px); }
-  100% { transform: translate(12px, -4px); }
-}
-@keyframes glitch-slice {
-  0% { clip-path: inset(10% 0 55% 0); transform: translateX(-20px); }
-  33% { clip-path: inset(45% 0 20% 0); transform: translateX(18px); }
-  66% { clip-path: inset(0 0 70% 0); transform: translateX(-6px); }
-  100% { clip-path: inset(0 0 0 0); transform: none; }
-}
-@keyframes glitch-flicker {
-  0% { opacity: 1; }
-  18% { opacity: 0; }
-  30% { opacity: 1; }
-  70% { opacity: 1; }
-  80% { opacity: 0.2; }
-  88% { opacity: 1; }
+@keyframes face-flash {
+  0%, 75% { opacity: 1; }
   100% { opacity: 0; }
 }
 
