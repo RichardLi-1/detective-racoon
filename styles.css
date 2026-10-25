@@ -378,6 +378,250 @@ body.loading #game {
   .surprise-guest.pop { animation: none; }
 }
 
+/* Guest idle thought bubbles: little paper clouds that puff in and out */
+.surprise-guest-idle {
+  position: absolute;
+  bottom: calc(100% + 30px);
+  left: 50%;
+  padding: 7px 12px;
+  border-radius: 16px;
+  background: rgba(241, 228, 204, 0.92);
+  color: #3b2a20;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 14px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(0.85);
+  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+  pointer-events: none;
+}
+.surprise-guest-idle::before,
+.surprise-guest-idle::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(241, 228, 204, 0.92);
+}
+.surprise-guest-idle::before { width: 10px; height: 10px; left: 45%; bottom: -12px; }
+.surprise-guest-idle::after { width: 6px; height: 6px; left: 40%; bottom: -21px; }
+.surprise-guest-idle.show {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+.surprise-guest.can-chat .surprise-guest-idle { opacity: 0; }
+
+/* Voice bubble: bouncing sound bars while a guest's recording plays, or a "tap to hear" button */
+.guest-voice {
+  position: absolute;
+  bottom: calc(100% + 30px);
+  left: 50%;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 18px;
+  background: #ffe9b3;
+  color: #3b2a20;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 15px;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(0.7);
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.guest-voice.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.guest-voice.tap.show { animation: chat-badge-nudge 1.6s ease-in-out infinite; }
+.voice-bars { display: flex; align-items: center; gap: 4px; height: 18px; }
+.voice-bars i {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: #c9605a;
+  animation: voice-bar 0.9s ease-in-out infinite;
+}
+.voice-bars i:nth-child(2) { animation-delay: -0.3s; }
+.voice-bars i:nth-child(3) { animation-delay: -0.6s; }
+.voice-bars i:nth-child(4) { animation-delay: -0.15s; }
+@keyframes voice-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.surprise-guest.can-chat .guest-voice { opacity: 0; pointer-events: none; }
+
+/* "chat" badge that pops above a guest when the raccoon walks up */
+.guest-chat-badge {
+  position: absolute;
+  bottom: calc(100% + 26px);
+  left: 50%;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #ffe9b3;
+  color: #3b2a20;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 16px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, 10px) scale(0.6);
+  transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+.guest-chat-badge span { font-size: 13px; opacity: 0.7; }
+.surprise-guest.can-chat .guest-chat-badge {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+  animation: chat-badge-nudge 1.6s ease-in-out 0.4s infinite;
+}
+.surprise-guest:not(.can-chat) .guest-chat-badge { pointer-events: none; }
+@keyframes chat-badge-nudge {
+  0%, 100% { transform: translate(-50%, 0) scale(1); }
+  50% { transform: translate(-50%, -4px) scale(1.04); }
+}
+.surprise-guest.can-chat .surprise-guest-says { display: none; }
+
+/* Guest chat card: a note + a pile of polaroids */
+#guest-chat {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  padding: 16px;
+}
+.guest-chat-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 10, 10, 0.6);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.guest-chat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  max-width: 920px;
+  width: 100%;
+  padding: 36px 40px;
+  border-radius: 22px;
+  background: #efe2c6;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(30px) scale(0.92) rotate(-1deg);
+  transition: opacity 0.25s ease, transform 0.4s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+#guest-chat.open .guest-chat-backdrop { opacity: 1; }
+#guest-chat.open .guest-chat-card { opacity: 1; transform: none; }
+.guest-chat-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  border: none;
+  background: none;
+  font-size: 30px;
+  color: #3b2a20;
+  cursor: pointer;
+}
+.guest-chat-stack-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: min(330px, 70vw);
+  height: min(440px, 62vh);
+}
+.guest-chat-stack {
+  position: absolute;
+  inset: 0;
+}
+.guest-photo {
+  position: absolute;
+  inset: 0;
+  padding: 12px 12px 42px;
+  background: #fbf7ee;
+  border-radius: 4px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transform: translate(calc(var(--k) * 7px), calc(var(--k) * 5px)) rotate(calc(var(--tilt) * (var(--k) + 0.4)));
+  transition: transform 0.35s cubic-bezier(0.3, 1.2, 0.5, 1), opacity 0.25s ease;
+}
+.guest-photo img,
+.guest-photo video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* landscape shots fit without cropping */
+  background: #2a201b;
+  display: block;
+  border-radius: 2px;
+}
+.guest-photo.top { transform: rotate(var(--tilt)); }
+.guest-photo.top:hover { transform: rotate(var(--tilt)) scale(1.02); }
+.guest-photo.buried { opacity: 0; }
+.guest-photo.fling {
+  transform: translateX(115%) rotate(18deg) !important;
+  opacity: 0;
+  transition: transform 0.23s ease-in, opacity 0.23s ease-in;
+}
+.guest-chat-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  border: none;
+  border-radius: 50%;
+  background: #ffe9b3;
+  color: #3b2a20;
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.guest-chat-arrow:hover { transform: scale(1.12); }
+.guest-chat-arrow.left { left: -22px; }
+.guest-chat-arrow.right { right: -22px; }
+.guest-chat-count {
+  position: absolute;
+  z-index: 30; /* above the photo pile */
+  bottom: -40px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Love Ya Like A Sister';
+  color: #6b5444;
+}
+.guest-chat-portrait {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.guest-chat-portrait img { height: 100%; width: auto; }
+.guest-chat-note {
+  flex: 1;
+  font-family: 'Love Ya Like A Sister';
+  color: #3b2a20;
+}
+.guest-chat-from { font-size: 18px; color: #8a6a52; margin-bottom: 10px; }
+.guest-chat-from b { font-size: 30px; color: #3b2a20; font-weight: 400; }
+.guest-chat-text {
+  font-size: 22px;
+  line-height: 1.45;
+  min-height: 5em;
+  margin: 0;
+}
+.guest-chat-hint { margin-top: 18px; font-size: 13px; color: #8a6a52; }
+@media (max-width: 720px) {
+  .guest-chat-card { flex-direction: column; gap: 44px; padding: 28px 22px; max-height: 92vh; overflow-y: auto; }
+  .guest-chat-stack-wrap { height: min(340px, 44vh); width: min(255px, 64vw); }
+  .guest-chat-text { font-size: 18px; }
+}
+
 /* Surprise confetti: above the scene and UI, below the fade */
 #confetti {
   position: absolute;

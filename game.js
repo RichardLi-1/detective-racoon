@@ -52,12 +52,42 @@ const CONFIG = {
     // Party guests who jump out when the lights come on. Placeholders for now:
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
     // Optional `depth` (0 = front row, 1 = back row) overrides the crowd's row pattern.
+    // `idle`: lines they mutter on their own. `message` + `photos`: what opens when you chat with them.
     guests: [
-      { name: 'kaylin', img: 'assets/guest-kaylin.webp' },
-      { name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!' },
-      { name: 'michele', img: 'assets/guest-michele.webp' },
-      { name: 'ashlyn', img: 'assets/guest-ashlyn.webp', says: 'happy birthday!' },
-      { name: 'person 5' },
+      {
+        name: 'kaylin', img: 'assets/guest-kaylin.webp',
+        idle: ['i brought you a flower!!', 'is the cake here yet?', 'shhh... act natural', 'one more photo pls'],
+        message: 'happy birthday fiona!! i love you sm, thank you for all the memories (and the vending machine photoshoots). here\'s to many more!!',
+        photos: ['assets/photos/kaylin-1.webp', 'assets/photos/kaylin-2.webp', 'assets/photos/kaylin-3.webp', 'assets/photos/kaylin-4.webp'],
+      },
+      {
+        name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!',
+        idle: ['i planned this whole thing btw', 'who ate the last slice.', 'smile for the photo. NOW.', 'hmph. happy birthday.'],
+      },
+      {
+        name: 'michele', img: 'assets/guest-michele.webp', voice: 'assets/audio/michele.m4a',
+        idle: ['yay yay yay!!', 'i love you fiona <3', 'best. party. ever.', 'did you like the surprise??'],
+      },
+      {
+        name: 'ashlyn', img: 'assets/guest-ashlyn.webp', says: 'happy birthday!',
+        idle: ['did someone say karaoke?', 'main character energy ✧', 'hehe gotcha!!', 'cake first, then dancing'],
+      },
+      {
+        name: 'jenna',
+        idle: ['wait did i miss the cake', 'i have SO many pics of you', 'pillow fight later??', 'peace ✌ happy bday'],
+        message: 'HAPPY BIRTHDAY FIONA!!! thank you for every sleepover, every pillow fight and every dumb photo. love you forever!!',
+        photos: Array.from({ length: 15 }, (_, i) => `assets/photos/jenna-${i + 1}.webp`).concat('assets/photos/jenna-video.mp4'),
+      },
+      {
+        name: 'richard',
+        idle: ['in my element rn', 'who wants to ride the subway after', 'i carried the cake btw', 'happy birthday fifi'],
+        photos: ['assets/photos/richard-1.webp'],
+      },
+      {
+        // `stretch` squashes/stretches a guest's height while keeping their width (1 = normal)
+        name: 'lucas', img: 'assets/guest-lucas.webp', stretch: 0.5,
+        idle: ['hi. it\'s me. lucas.', 'down here!!', 'why am i so short', 'happy birthday!!'],
+      },
     ],
   },
   physics: {
@@ -98,6 +128,8 @@ let surprisePending = true; // first time entering the house plays the lights-of
 let cutscenePlaying = false; // locks raccoon controls while the surprise intro runs
 let surpriseGuestsEl = null; // world-layer container for the party guests
 let surpriseGuests = []; // { el, xFrac } per guest; x stored as a fraction of world width for resizes
+let nearGuest = null; // guest the raccoon is close enough to chat with
+let guestChatOpen = false; // guest chat card open state
 let overlayOpen = false; // inventory open state
 let fatherFigureOverlayOpen = false; // father figure overlay state
 let sceneTransitioning = false; // flag to prevent suitcase showing during transitions
@@ -1033,7 +1065,7 @@ async function startSurprise() {
 // Placeholder party guest: soft stick figure with arms up and a party hat
 function stickFigureSvg(hatColor) {
   return `
-    <svg class="stick-figure" viewBox="0 0 100 210" aria-hidden="true">
+    <svg class="stick-figure" viewBox="0 0 100 210" preserveAspectRatio="none" aria-hidden="true">
       <path d="M36 28 L50 4 L64 28 Z" fill="${hatColor}" opacity="0.85"/>
       <circle cx="50" cy="5" r="4.5" fill="${hatColor}"/>
       <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
@@ -1088,13 +1120,232 @@ function revealSurpriseGuests() {
       setTimeout(() => hide(bubble), 3000 + i * 90);
     }
 
+    // Idle thought bubble + the "chat" badge that pops when the raccoon walks up
+    const idle = document.createElement('div');
+    idle.className = 'surprise-guest-idle';
+    el.appendChild(idle);
+    const entry = { el, guest, idle, depth: 0, xFrac: 0 };
+    if (canChatWith(guest)) {
+      const badge = document.createElement('button');
+      badge.className = 'guest-chat-badge';
+      badge.innerHTML = `chat <span>⏎</span>`;
+      badge.addEventListener('click', (e) => { e.stopPropagation(); openGuestChat(entry); });
+      el.appendChild(badge);
+    }
+
     surpriseGuestsEl.appendChild(el);
     const t = guests.length > 1 ? i / (guests.length - 1) : 0.5;
-    const depth = guest.depth ?? CROWD_DEPTHS[i % CROWD_DEPTHS.length];
-    surpriseGuests.push({ el, depth, xFrac: (left + (right - left) * t) / worldW });
+    entry.depth = guest.depth ?? CROWD_DEPTHS[i % CROWD_DEPTHS.length];
+    entry.xFrac = (left + (right - left) * t) / worldW;
+    surpriseGuests.push(entry);
   });
 
   placeSurpriseGuests();
+  setTimeout(startGuestChatter, 3400); // after the opening "surprise!!" lines
+  setTimeout(playGuestVoices, 3000);
+}
+
+// Guests with a `voice` recording speak it after the surprise, with a talking bubble.
+// Browsers may block audio before the visitor has clicked/pressed anything; then the
+// bubble becomes a "tap to hear" button instead.
+function playGuestVoices() {
+  for (const g of surpriseGuests) {
+    if (!g.guest.voice) continue;
+    const audio = new Audio(versionedAsset(g.guest.voice));
+    const bubble = document.createElement('button');
+    bubble.className = 'guest-voice';
+    g.el.appendChild(bubble);
+    g.idle.classList.remove('show');
+
+    const talking = () => {
+      g.talking = true;
+      bubble.classList.remove('tap');
+      bubble.innerHTML = '<span class="voice-bars"><i></i><i></i><i></i><i></i></span>';
+      bubble.classList.add('show');
+    };
+    audio.addEventListener('ended', () => {
+      g.talking = false;
+      bubble.classList.remove('show');
+      setTimeout(() => bubble.remove(), 300);
+    });
+    bubble.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!g.talking) audio.play().then(talking).catch(() => {});
+    });
+
+    audio.play().then(talking).catch(() => {
+      bubble.classList.add('tap', 'show');
+      bubble.textContent = '▶ tap to hear me!';
+    });
+  }
+}
+
+// -------- Guest Chatter & Chat --------
+function canChatWith(guest) {
+  return Boolean(guest.message || guest.photos?.length || guest.img);
+}
+
+// Every couple of seconds a random guest (not mid-sentence) mutters one of their idle lines
+function startGuestChatter() {
+  const lastLine = new Map();
+  setInterval(() => {
+    if (guestChatOpen || scene !== 'inside') return;
+    const quiet = surpriseGuests.filter(g => g.guest.idle?.length && !g.talking && !g.el.querySelector('.guest-voice') && !g.idle.classList.contains('show'));
+    if (!quiet.length) return;
+    const g = quiet[Math.floor(Math.random() * quiet.length)];
+    const lines = g.guest.idle.filter(l => l !== lastLine.get(g) || g.guest.idle.length === 1);
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    lastLine.set(g, line);
+    g.idle.textContent = line;
+    g.idle.classList.add('show');
+    setTimeout(() => g.idle.classList.remove('show'), 2600);
+  }, 1400);
+}
+
+// Nearest chat-able guest within reach of the raccoon gets the bouncing "chat" badge
+function updateGuestProximity() {
+  let best = null;
+  if (scene === 'inside' && surpriseGuestsEl && !cutscenePlaying && !guestChatOpen) {
+    let bestDist = racEl.offsetHeight * 0.22;
+    for (const g of surpriseGuests) {
+      if (!canChatWith(g.guest)) continue;
+      const d = Math.abs(g.xFrac * worldW - racX);
+      if (d < bestDist) { bestDist = d; best = g; }
+    }
+  }
+  if (best !== nearGuest) {
+    nearGuest?.el.classList.remove('can-chat');
+    best?.el.classList.add('can-chat');
+    if (best) playSound(clickSound);
+    nearGuest = best;
+  }
+}
+
+let guestChatEl = null;
+let guestChatPhotos = [];
+let guestChatIndex = 0;
+let typeTimer = null;
+
+function openGuestChat(entry) {
+  if (guestChatOpen || !entry) return;
+  const { guest } = entry;
+  guestChatOpen = true;
+  keys.clear();
+  playSound(clickSound);
+
+  guestChatEl = document.createElement('div');
+  guestChatEl.id = 'guest-chat';
+  guestChatEl.innerHTML = `
+    <div class="guest-chat-backdrop" data-close></div>
+    <div class="guest-chat-card">
+      <button class="guest-chat-close" data-close aria-label="Close">×</button>
+      <div class="guest-chat-stack-wrap"></div>
+      <div class="guest-chat-note">
+        <div class="guest-chat-from">from <b></b></div>
+        <p class="guest-chat-text"></p>
+        <div class="guest-chat-hint"></div>
+      </div>
+    </div>`;
+  document.getElementById('ui').appendChild(guestChatEl);
+  guestChatEl.querySelector('.guest-chat-from b').textContent = guest.name;
+  guestChatEl.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.hasAttribute('data-close')) closeGuestChat();
+  });
+
+  // Stacked polaroids: click / arrows to flip through one at a time
+  const wrap = guestChatEl.querySelector('.guest-chat-stack-wrap');
+  guestChatPhotos = [];
+  guestChatIndex = 0;
+  const photos = guest.photos || [];
+  if (photos.length) {
+    wrap.innerHTML = `
+      <button class="guest-chat-arrow left" aria-label="Previous photo">‹</button>
+      <div class="guest-chat-stack"></div>
+      <button class="guest-chat-arrow right" aria-label="Next photo">›</button>
+      <div class="guest-chat-count"></div>`;
+    const stack = wrap.querySelector('.guest-chat-stack');
+    photos.forEach((src, i) => {
+      const card = document.createElement('div');
+      card.className = 'guest-photo';
+      card.style.setProperty('--tilt', `${(i % 2 ? 1 : -1) * (2 + (i * 7) % 5)}deg`);
+      const isVideo = /\.(mp4|webm|mov)$/i.test(src);
+      const media = document.createElement(isVideo ? 'video' : 'img');
+      media.src = versionedAsset(src);
+      if (isVideo) Object.assign(media, { muted: true, loop: true, autoplay: true, playsInline: true });
+      else media.alt = `${guest.name} photo ${i + 1}`;
+      media.draggable = false;
+      card.appendChild(media);
+      card.addEventListener('click', () => flipGuestPhoto(1));
+      stack.appendChild(card);
+      guestChatPhotos.push(card);
+    });
+    wrap.querySelector('.left').addEventListener('click', () => flipGuestPhoto(-1));
+    wrap.querySelector('.right').addEventListener('click', () => flipGuestPhoto(1));
+    layoutGuestPhotos();
+  } else {
+    wrap.innerHTML = `<div class="guest-chat-portrait"></div>`;
+    if (guest.img) {
+      const img = document.createElement('img');
+      img.src = versionedAsset(guest.img);
+      img.alt = guest.name;
+      wrap.firstElementChild.appendChild(img);
+    }
+  }
+  guestChatEl.querySelector('.guest-chat-hint').textContent = photos.length
+    ? '← → or click the photos to flip · esc to close'
+    : 'esc to close';
+
+  // Typewriter message
+  const text = guest.message || `${guest.name} is still writing their message... check back soon 👀`;
+  const p = guestChatEl.querySelector('.guest-chat-text');
+  let n = 0;
+  clearInterval(typeTimer);
+  typeTimer = setInterval(() => {
+    p.textContent = text.slice(0, ++n);
+    if (n >= text.length) clearInterval(typeTimer);
+  }, 22);
+
+  requestAnimationFrame(() => guestChatEl.classList.add('open'));
+}
+
+// Card at offset 0 is on top; the rest fan out underneath
+function layoutGuestPhotos() {
+  const n = guestChatPhotos.length;
+  guestChatPhotos.forEach((card, i) => {
+    const k = (i - guestChatIndex + n) % n;
+    card.style.zIndex = String(n - k);
+    card.style.setProperty('--k', k);
+    card.classList.toggle('top', k === 0);
+    card.classList.toggle('buried', k > 3);
+  });
+  const count = guestChatEl?.querySelector('.guest-chat-count');
+  if (count) count.textContent = `${guestChatIndex + 1} / ${n}`;
+}
+
+function flipGuestPhoto(dir) {
+  const n = guestChatPhotos.length;
+  if (n < 2) return;
+  playSound(clickSound);
+  if (dir > 0) {
+    // Fling the top photo off to the side, then tuck it under the pile
+    const top = guestChatPhotos[guestChatIndex];
+    top.classList.add('fling');
+    guestChatIndex = (guestChatIndex + 1) % n;
+    setTimeout(() => { top.classList.remove('fling'); layoutGuestPhotos(); }, 230);
+  } else {
+    guestChatIndex = (guestChatIndex - 1 + n) % n;
+    layoutGuestPhotos();
+  }
+}
+
+function closeGuestChat() {
+  if (!guestChatOpen) return;
+  clearInterval(typeTimer);
+  const el = guestChatEl;
+  el.classList.remove('open');
+  setTimeout(() => el.remove(), 250);
+  guestChatEl = null;
+  guestChatOpen = false;
 }
 
 // Alternating front/back rows so the back row peeks between the front row
@@ -1107,8 +1358,16 @@ function placeSurpriseGuests() {
   const racSize = racEl.offsetHeight;
   const floorY = getGroundY() + racSize * 0.1;
   for (const g of surpriseGuests) {
-    const gh = racSize * 0.48 * (1 - g.depth * 0.3);
-    const gw = gh * 0.5;
+    const baseH = racSize * 0.48 * (1 - g.depth * 0.3);
+    const stretch = g.guest.stretch || 1;
+    const gh = baseH * stretch;
+    const gw = baseH * 0.5;
+    // Stretched art keeps its normal width and only grows taller
+    const img = g.el.querySelector('img');
+    if (img && stretch !== 1) {
+      if (!img.naturalWidth) img.onload = placeSurpriseGuests;
+      img.style.width = `${baseH * (img.naturalWidth / img.naturalHeight || 0.5)}px`;
+    }
     const feetY = floorY - g.depth * racSize * 0.13;
     const x = g.xFrac * worldW;
     g.el.style.left = `${x - gw / 2}px`;
@@ -1885,6 +2144,12 @@ window.addEventListener('keydown', (e) => {
     if (k === 'escape' || k === 'esc') { e.preventDefault(); closeShelfOverlay(); }
     return;
   }
+  if (guestChatOpen) {
+    if (k === 'escape' || k === 'esc') { e.preventDefault(); closeGuestChat(); }
+    if (k === 'arrowleft' || k === 'a') { e.preventDefault(); flipGuestPhoto(-1); }
+    if (k === 'arrowright' || k === 'd') { e.preventDefault(); flipGuestPhoto(1); }
+    return;
+  }
   if (cutscenePlaying) return;
   if (['arrowleft','arrowright','a','d'].includes(k)) {
     keys.add(k);
@@ -1892,7 +2157,8 @@ window.addEventListener('keydown', (e) => {
   if (k === 'enter') {
     if (scene === 'outside') tryEnterHouse();
     else if (scene === 'inside') {
-      if (canOpenSuitcase) openInventory();
+      if (nearGuest) openGuestChat(nearGuest);
+      else if (canOpenSuitcase) openInventory();
       else if (canGoUpstairs) tryEnterUpstairs();
       else if (canInteract) tryExitHouse();
     } else if (scene === 'upstairs') {
@@ -2456,7 +2722,7 @@ function tick(ts) {
   // Movement intent (keyboard + touch)
   let vx = 0;
   let vControl = 0; // -1 up, +1 down
-  if (!cutscenePlaying && !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen) {
+  if (!cutscenePlaying && !guestChatOpen && !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen) {
     // Keyboard controls
     if (keys.has('arrowleft') || keys.has('a')) vx -= 1;
     if (keys.has('arrowright') || keys.has('d')) vx += 1;
@@ -2689,6 +2955,8 @@ function tick(ts) {
       suitcaseHotspot.classList.remove('hover-active');
     }
   }
+
+  updateGuestProximity();
 
   // Keep chat bubble following the raccoon while visible
   if (!chatEl.classList.contains('hidden')) {
