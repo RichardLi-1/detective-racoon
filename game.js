@@ -423,6 +423,17 @@ function placeRaccoon() {
   racEl.style.top = `${racY}px`;
 }
 
+// After the world is re-fitted (window resize), keep the raccoon and any scripted walk
+// at the same spot in the scene, standing on the new floor
+function keepRaccoonInRescaledWorld(prevWorldW) {
+  if (!prevWorldW) return;
+  const k = worldW / prevWorldW;
+  racX = clamp(racX * k, 0, worldW);
+  if (autoWalkTargetX !== null) autoWalkTargetX *= k;
+  racY = onGround ? getGroundY() : clamp(racY, getCeilingY(), getGroundY());
+  placeRaccoon();
+}
+
 function placeBtnAtWorld(el, x, y, yOffset = -40) {
   const vx = x - cameraX;
   const vy = y - cameraY + yOffset;
@@ -1173,11 +1184,17 @@ function launchConfetti(count = 160) {
   canvas.id = 'confetti';
   gameEl.appendChild(canvas);
   const ctx = canvas.getContext('2d');
-  const { w, h } = viewportSize();
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  ctx.scale(dpr, dpr);
+  let w, h;
+  // Keep the canvas matched to the window so pieces don't stretch on resize
+  const fitCanvas = () => {
+    ({ w, h } = viewportSize());
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
 
   const pieces = [];
   for (let i = 0; i < count; i++) {
@@ -1234,7 +1251,10 @@ function launchConfetti(count = 160) {
     }
 
     if (alive > 0 && elapsed < lifeMs) requestAnimationFrame(frame);
-    else canvas.remove();
+    else {
+      canvas.remove();
+      window.removeEventListener('resize', fitCanvas);
+    }
   }
   requestAnimationFrame(frame);
 }
@@ -2972,23 +2992,29 @@ async function startGame() {
     window.addEventListener('resize', () => {
       // Re-fit current scene
       if (!bgEl.naturalWidth || !bgEl.naturalHeight) return;
+      const prevWorldW = worldW;
       updateRaccoonSize();
-      // Re-sync game height to visual viewport on mobile (Safari 100vh != innerHeight)
+      // Mobile floor bar: re-sync game height to the visual viewport (Safari 100vh != innerHeight),
+      // and add/drop the bar when a rotation crosses the mobile breakpoint
       const resizeFloorBar = document.getElementById('mobile-floor-bar');
-      if (resizeFloorBar && resizeFloorBar.style.display === 'block') {
-        gameEl.style.height = `${window.innerHeight - resizeFloorBar.offsetHeight}px`;
+      if (resizeFloorBar) {
+        const isMobile = 'ontouchstart' in window && window.innerWidth < 768;
+        resizeFloorBar.style.display = isMobile ? 'block' : 'none';
+        gameEl.classList.toggle('inside-mobile', isMobile);
+        gameEl.style.height = isMobile ? `${window.innerHeight - resizeFloorBar.offsetHeight}px` : '';
         void gameEl.offsetHeight;
       }
       if (scene === 'outside') {
         fitBackgroundToViewportCover(bgEl);
         updateDoorWorldFromScaled();
-        // keep outside camera frozen at new center
-        centerCameraOn(racX, racY);
+      } else if (scene === 'upstairs') {
+        fitBackgroundToViewportCover(bgEl, 1.05); // same fit as enterUpstairs
+        placeUpstairsLantern();
+        placeUpstairsShelf();
       } else {
         fitBackgroundToViewportHeight(bgEl);
         updateExitWorldFromScaled();
         updateSuitcaseWorldFromScaled();
-        if (scene === 'inside') placeSurpriseGuests();
         // rescale hotspot size on viewport changes
         if (suitcaseHotspot) {
           const s = CONFIG.inside.suitcase;
@@ -2997,8 +3023,10 @@ async function startGame() {
             suitcaseHotspot.style.height = 'auto'; // maintain aspect ratio
           }
         }
-        centerCameraOn(racX, racY);
       }
+      keepRaccoonInRescaledWorld(prevWorldW);
+      if (scene === 'inside') placeSurpriseGuests();
+      centerCameraOn(racX, racY);
     });
     
   } catch (error) {
