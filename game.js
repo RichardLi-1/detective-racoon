@@ -1226,19 +1226,38 @@ let shutterCtx = null;
 function shutterSound() {
   try {
     shutterCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = shutterCtx, len = Math.floor(ctx.sampleRate * 0.07);
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1800;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.35;
-    src.connect(filter).connect(gain).connect(ctx.destination);
-    src.start();
+    const ctx = shutterCtx, now = ctx.currentTime;
+    // Phone-camera style "ch-chk": a bright click then a lower one ~70ms later,
+    // each a band-passed noise snap plus a tiny tonal tick
+    const click = (t, freq, tone, vol) => {
+      const len = Math.floor(ctx.sampleRate * 0.035);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.12));
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = freq;
+      band.Q.value = 1.4;
+      const ng = ctx.createGain();
+      ng.gain.value = vol;
+      noise.connect(band).connect(ng).connect(ctx.destination);
+      noise.start(now + t);
+
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(tone, now + t);
+      osc.frequency.exponentialRampToValueAtTime(tone * 0.5, now + t + 0.02);
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(vol * 0.25, now + t);
+      og.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.025);
+      osc.connect(og).connect(ctx.destination);
+      osc.start(now + t);
+      osc.stop(now + t + 0.03);
+    };
+    click(0, 4200, 1900, 0.9);
+    click(0.07, 2600, 1100, 0.75);
   } catch { /* no audio, flashes still work */ }
 }
 
