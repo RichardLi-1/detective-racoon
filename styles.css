@@ -2583,3 +2583,36 @@ body.overlay-open #touch-controls {
 @media (prefers-reduced-motion: reduce) {
   .flash-blink { display: none; }
 }
+
+/* Voice note in a guest's chat card */
+.voice-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 10px 16px 10px 10px;
+  border-radius: 999px;
+  background: #f8f0de;
+  box-shadow: inset 0 0 0 2px #e2d2b2;
+}
+.voice-note-play {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: #c9605a;
+  color: #fbf3e2;
+  font-size: 15px;
+  cursor: pointer;
+}
+.voice-note .voice-bars i { animation-play-state: paused; }
+.voice-note.playing .voice-bars i { animation-play-state: running; }
+.voice-note-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2d2b2;
+  overflow: hidden;
+}
+.voice-note-fill { width: 0; height: 100%; background: #c9605a; transition: width 0.25s linear; }

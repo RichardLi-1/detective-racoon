@@ -78,6 +78,9 @@ const CONFIG = {
       },
       {
         name: 'ashlyn', img: 'assets/guest-ashlyn.webp', says: 'happy birthday!',
+        message: 'i recorded you something!! turn your sound up ♡',
+        // `voiceMessage`: a voice note that plays in their chat card
+        voiceMessage: 'assets/audio/ashlyn-message.m4a',
         idle: ['did someone say karaoke?', 'main character energy ✧', 'hehe gotcha!!', 'cake first, then dancing'],
       },
       {
@@ -1609,6 +1612,7 @@ let guestChatEl = null;
 let guestChatPhotos = [];
 let guestChatIndex = 0;
 let typeTimer = null;
+let guestChatAudio = null;
 
 function openGuestChat(entry) {
   if (guestChatOpen || !entry) return;
@@ -1679,6 +1683,30 @@ function openGuestChat(entry) {
     ? '← → or click the photos to flip · esc to close'
     : 'esc to close';
 
+  // Voice note: auto-plays when the card opens, with play/pause and progress
+  if (guest.voiceMessage) {
+    const note = document.createElement('div');
+    note.className = 'voice-note';
+    note.innerHTML = `<button class="voice-note-play" aria-label="Play voice message">❚❚</button>
+      <span class="voice-bars"><i></i><i></i><i></i><i></i><i></i></span>
+      <div class="voice-note-track"><div class="voice-note-fill"></div></div>`;
+    guestChatEl.querySelector('.guest-chat-text').after(note);
+    const audio = new Audio(versionedAsset(guest.voiceMessage));
+    guestChatAudio = audio;
+    const btn = note.querySelector('.voice-note-play');
+    const fill = note.querySelector('.voice-note-fill');
+    const sync = () => {
+      btn.textContent = audio.paused ? '▶' : '❚❚';
+      note.classList.toggle('playing', !audio.paused);
+    };
+    audio.addEventListener('timeupdate', () => { fill.style.width = `${(audio.currentTime / audio.duration) * 100 || 0}%`; });
+    audio.addEventListener('play', sync);
+    audio.addEventListener('pause', sync);
+    audio.addEventListener('ended', sync);
+    btn.addEventListener('click', () => (audio.paused ? audio.play() : audio.pause()));
+    audio.play().catch(sync);
+  }
+
   // Typewriter message
   const text = guest.message || `${guest.name} is still writing their message... check back soon 👀`;
   const p = guestChatEl.querySelector('.guest-chat-text');
@@ -1725,6 +1753,8 @@ function flipGuestPhoto(dir) {
 function closeGuestChat() {
   if (!guestChatOpen) return;
   clearInterval(typeTimer);
+  guestChatAudio?.pause();
+  guestChatAudio = null;
   const el = guestChatEl;
   el.classList.remove('open');
   setTimeout(() => el.remove(), 250);
