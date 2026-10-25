@@ -75,6 +75,8 @@ const CONFIG = {
       },
       {
         name: 'michele', img: 'assets/guest-michele.webp', voice: 'assets/audio/michele.m4a',
+        message: 'press play!! happy birthday fiona ♡',
+        voiceMessage: 'assets/audio/michele.m4a',
         idle: ['yay yay yay!!', 'i love you fiona <3', 'best. party. ever.', 'did you like the surprise??'],
       },
       {
