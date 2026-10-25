@@ -86,7 +86,8 @@ const CONFIG = {
       {
         name: 'jenna', img: 'assets/guest-jenna.webp',
         idle: ['wait did i miss the cake', 'i have SO many pics of you', 'pillow fight later??', 'peace ✌ happy bday'],
-        message: 'HAPPY BIRTHDAY FIONA!!! thank you for every sleepover, every pillow fight and every dumb photo. love you forever!!',
+        message: 'press play!! happy birthday fiona ♡',
+        voiceMessage: 'assets/audio/jenna-message.m4a',
         photos: Array.from({ length: 15 }, (_, i) => `assets/photos/jenna-${i + 1}.webp`).concat('assets/photos/jenna-video.mp4'),
       },
       {
