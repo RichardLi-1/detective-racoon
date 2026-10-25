@@ -51,6 +51,10 @@ const CONFIG = {
   surprise: {
     // Plays when the lights come on (already trimmed to its first 15s); guests jump along
     song: 'assets/audio/birthday-song.mp3',
+    // Voice message played when the lights come on, before the song
+    startMessage: 'assets/audio/message.m4a',
+    // Lucas's face glitches across the whole screen every so often after the surprise
+    glitchImage: 'assets/photos/lucas-glitch.webp',
     // Party guests who jump out when the lights come on. Placeholders for now:
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
     // Optional `depth` (0 = front row, 1 = back row) overrides the crowd's row pattern.
@@ -81,14 +85,22 @@ const CONFIG = {
         photos: Array.from({ length: 15 }, (_, i) => `assets/photos/jenna-${i + 1}.webp`).concat('assets/photos/jenna-video.mp4'),
       },
       {
-        name: 'richard',
+        name: 'tj lee',
+        idle: ['tj in the building!!', 'who\'s on aux', 'happy birthday fiona!!', 'is there more cake'],
+      },
+      {
+        name: 'richard', img: 'assets/guest-richard.webp',
         idle: ['in my element rn', 'who wants to ride the subway after', 'i carried the cake btw', 'happy birthday fifi'],
         photos: ['assets/photos/richard-1.webp'],
       },
       {
         // `stretch` squashes/stretches a guest's height while keeping their width (1 = normal)
-        name: 'lucas', img: 'assets/guest-lucas.webp', stretch: 0.5,
+        name: 'lucas', img: 'assets/guest-lucas.webp', stretch: 0.38,
         idle: ['hi. it\'s me. lucas.', 'down here!!', 'why am i so short', 'happy birthday!!', 'bitch', 'bitch'],
+      },
+      {
+        name: 'emily dong',
+        idle: ['happy birthday fiona!!! <3', 'okay this party is SO cute', 'photo booth when??', 'love you fifi'],
       },
     ],
   },
@@ -1069,13 +1081,16 @@ async function playSurpriseIntro() {
 // The surprise: guests jump out, a little shake + confetti
 async function startSurprise() {
   document.title = 'HAPPY BIRTHDAY FIONA!!!!';
+  setTimeout(scheduleLucasGlitch, 20000);
   revealSurpriseGuests();
   buildPartyDecor();
   shakeScreen();
   launchConfetti();
-  await playBirthdaySong(); // raccoon stays put (cutscene) while everyone sings
+  await playClip(CONFIG.surprise.startMessage); // the audio message first...
+  await playBirthdaySong(); // ...then the song; raccoon stays put (cutscene) throughout
   playGuestVoices();
   placeCake();
+  startPaparazzi();
 }
 
 // -------- Birthday Cake & Wish --------
@@ -1153,7 +1168,6 @@ function openWish() {
         <div class="guest-chat-from">make a <b>wish</b></div>
         <textarea class="wish-input" rows="4" maxlength="280" placeholder="close your eyes... type your wish here" autocomplete="off" spellcheck="false"></textarea>
         <button class="wish-blow">blow out the candles 🌬</button>
-        <div class="guest-chat-hint">your wish disappears when you blow — it's never saved anywhere</div>
       </div>
     </div>`;
   document.getElementById('ui').appendChild(el);
@@ -1202,6 +1216,81 @@ function closeWish() {
     setTimeout(() => el.remove(), 250);
   }
   wishOpen = false;
+}
+
+// -------- Paparazzi --------
+// After the song everyone pulls out a phone; flashes pop from the phones with a shutter click
+// (a short burst of filtered noise) and a quick white blink. A frenzy first, then the odd flash.
+let shutterCtx = null;
+
+function shutterSound() {
+  try {
+    shutterCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = shutterCtx, len = Math.floor(ctx.sampleRate * 0.07);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 1800;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.35;
+    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.start();
+  } catch { /* no audio, flashes still work */ }
+}
+
+function startPaparazzi() {
+  if (!surpriseGuestsEl) return;
+  surpriseGuests.forEach((g, i) => {
+    const phone = document.createElement('div');
+    phone.className = `guest-phone ${i % 2 ? 'left' : 'right'}`;
+    g.el.appendChild(phone);
+    g.phone = phone;
+  });
+  surpriseGuestsEl.classList.add('paparazzi');
+  const frenzyEnd = performance.now() + 12000;
+  const next = () => {
+    const frenzy = performance.now() < frenzyEnd;
+    setTimeout(() => { cameraFlash(); next(); }, frenzy ? 250 + Math.random() * 600 : 3500 + Math.random() * 5000);
+  };
+  next();
+}
+
+function cameraFlash() {
+  if (scene !== 'inside' || guestChatOpen || wishOpen || overlayOpen) return;
+  const g = surpriseGuests[Math.floor(Math.random() * surpriseGuests.length)];
+  if (!g?.phone) return;
+  const r = g.phone.getBoundingClientRect();
+  const flash = document.createElement('div');
+  flash.className = 'camera-flash';
+  flash.style.left = `${r.left + r.width / 2}px`;
+  flash.style.top = `${r.top + r.height * 0.2}px`;
+  document.body.appendChild(flash);
+  const blink = document.createElement('div');
+  blink.className = 'flash-blink';
+  document.body.appendChild(blink);
+  g.phone.classList.add('snap');
+  setTimeout(() => { flash.remove(); blink.remove(); g.phone.classList.remove('snap'); }, 450);
+  shutterSound();
+}
+
+// -------- Lucas Glitch --------
+// Every 25-45s his face flashes full-screen for a split second, RGB-split like a broken signal
+function scheduleLucasGlitch() {
+  setTimeout(() => { lucasGlitch(); scheduleLucasGlitch(); }, 25000 + Math.random() * 20000);
+}
+
+function lucasGlitch() {
+  if (guestChatOpen || wishOpen || overlayOpen) return;
+  const src = versionedAsset(CONFIG.surprise.glitchImage);
+  const el = document.createElement('div');
+  el.id = 'lucas-glitch';
+  el.innerHTML = ['r', 'g', 'b', 'base'].map(c => `<div class="glitch-layer ${c}" style="background-image:url('${src}')"></div>`).join('');
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 420);
 }
 
 // -------- Party Decorations --------
@@ -1394,6 +1483,17 @@ function revealSurpriseGuests() {
 
 // Birthday song with everyone jumping along. If the browser blocks audio (no click yet),
 // a "play the song" button appears instead and the voices go ahead without it.
+// Play a one-off audio clip at full volume; resolves when it ends (or straight away if it can't play)
+function playClip(src) {
+  return new Promise(resolve => {
+    const clip = new Audio(versionedAsset(src));
+    clip.volume = 1;
+    clip.addEventListener('ended', resolve, { once: true });
+    clip.addEventListener('error', resolve, { once: true });
+    clip.play().catch(resolve);
+  });
+}
+
 // Resolves when the song ends (or right away-ish if it was blocked).
 function playBirthdaySong() {
   return new Promise(onDone => {
@@ -3685,6 +3785,21 @@ function showMobileWarning() {
   document.body.classList.remove('loading');
 }
 
+// "click to begin" after loading: browsers only allow sound after a click, so this one click
+// unlocks the audio message, the birthday song and the guests' voices for later
+function waitForStartClick() {
+  return new Promise(resolve => {
+    const btn = document.createElement('button');
+    btn.id = 'start-gate';
+    btn.textContent = 'click to begin ♡';
+    document.getElementById('loading-screen')?.appendChild(btn);
+    btn.addEventListener('click', () => {
+      btn.remove();
+      resolve();
+    }, { once: true });
+  });
+}
+
 // Main initialization with loading screen
 (async function init() {
   // Mobile devices are now supported - game runs on all screen sizes
@@ -3701,7 +3816,10 @@ function showMobileWarning() {
 
     // Start preloading assets
     console.log('Starting asset preload...');
-    await preloader.preloadAssets();
+    // Load in the background while "click to begin" waits for the visitor
+    const preloadDone = preloader.preloadAssets();
+    await waitForStartClick();
+    await preloadDone;
     console.log('All assets loaded successfully!');
 
     // Hide loading screen and start the game
