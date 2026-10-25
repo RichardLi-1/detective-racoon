@@ -65,7 +65,8 @@ const CONFIG = {
       {
         name: 'kaylin', img: 'assets/guest-kaylin.webp',
         idle: ['i brought you a flower!!', 'is the cake here yet?', 'shhh... act natural', 'one more photo pls'],
-        message: 'happy birthday fiona!! i love you sm, thank you for all the memories (and the vending machine photoshoots). here\'s to many more!!',
+        message: 'press play!! happy birthday fiona ♡',
+        voiceMessage: 'assets/audio/kaylin-message.m4a',
         photos: ['assets/photos/kaylin-1.webp', 'assets/photos/kaylin-2.webp', 'assets/photos/kaylin-3.webp', 'assets/photos/kaylin-4.webp'],
       },
       {
