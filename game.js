@@ -51,6 +51,7 @@ const CONFIG = {
   surprise: {
     // Party guests who jump out when the lights come on. Placeholders for now:
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
+    // Optional `depth` (0 = front row, 1 = back row) overrides the crowd's row pattern.
     guests: [
       { name: 'kaylin', img: 'assets/guest-kaylin.webp' },
       { name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!' },
@@ -1050,10 +1051,13 @@ function revealSurpriseGuests() {
   surpriseGuestsEl.id = 'surprise-guests';
   worldEl.insertBefore(surpriseGuestsEl, racEl);
 
-  // Spread guests across the visible room to the right of the raccoon
+  // Crowd the guests into the visible room to the right of the raccoon, packed tighter than
+  // their width so front and back rows overlap
   const { w } = viewportSize();
-  const left = racX + w * 0.14;
-  const right = cameraX + w * 0.94;
+  const left = racX + w * 0.13;
+  const guestW = racEl.offsetHeight * 0.48 * 0.5;
+  const step = Math.min((cameraX + w * 0.91 - left) / Math.max(guests.length - 1, 1), guestW * 0.72);
+  const right = left + step * (guests.length - 1);
 
   guests.forEach((guest, i) => {
     const el = document.createElement('div');
@@ -1086,25 +1090,33 @@ function revealSurpriseGuests() {
 
     surpriseGuestsEl.appendChild(el);
     const t = guests.length > 1 ? i / (guests.length - 1) : 0.5;
-    surpriseGuests.push({ el, xFrac: (left + (right - left) * t) / worldW });
+    const depth = guest.depth ?? CROWD_DEPTHS[i % CROWD_DEPTHS.length];
+    surpriseGuests.push({ el, depth, xFrac: (left + (right - left) * t) / worldW });
   });
 
   placeSurpriseGuests();
 }
 
-// Size and stand guests like the raccoon (its sprite's feet sit ~10% of its box below the anchor)
+// Alternating front/back rows so the back row peeks between the front row
+const CROWD_DEPTHS = [0.1, 0.8, 0.2, 0.65, 0.05, 0.9];
+
+// Size and stand guests like the raccoon (its sprite's feet sit ~10% of its box below the anchor).
+// Depth fakes a 3D crowd: further back = smaller, standing higher up the floor, drawn behind.
 function placeSurpriseGuests() {
   if (!surpriseGuestsEl) return;
   const racSize = racEl.offsetHeight;
-  const gh = racSize * 0.48;
-  const gw = gh * 0.5;
-  const feetY = getGroundY() + racSize * 0.1;
+  const floorY = getGroundY() + racSize * 0.1;
   for (const g of surpriseGuests) {
+    const gh = racSize * 0.48 * (1 - g.depth * 0.3);
+    const gw = gh * 0.5;
+    const feetY = floorY - g.depth * racSize * 0.13;
     const x = g.xFrac * worldW;
     g.el.style.left = `${x - gw / 2}px`;
     g.el.style.top = `${feetY - gh}px`;
     g.el.style.width = `${gw}px`;
     g.el.style.height = `${gh}px`;
+    g.el.style.zIndex = String(Math.round((1 - g.depth) * 100));
+    g.el.style.setProperty('--depth', g.depth);
   }
 }
 

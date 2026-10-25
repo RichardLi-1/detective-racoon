@@ -319,6 +319,22 @@ body.loading #game {
   color: rgba(226, 214, 192, 0.85); /* muted paper tone, matches the cutouts */
   transform-origin: 50% 100%;
 }
+/* Soft contact shadow so each guest stands on the floor */
+.surprise-guest::before {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -3%;
+  height: 7%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0) 70%);
+  z-index: -1;
+}
+/* Back-row guests sit a little dimmer, like they're further into the room */
+.surprise-guest .stick-figure,
+.surprise-guest img {
+  filter: brightness(calc(1 - var(--depth, 0) * 0.3));
+}
 .surprise-guest .stick-figure {
   display: block;
   width: 100%;
