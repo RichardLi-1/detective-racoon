@@ -1223,7 +1223,8 @@ function launchConfetti(count = 160) {
   let last = start;
 
   function frame(now) {
-    const dt = Math.min((now - last) / 1000, 0.05);
+    // rAF's timestamp can predate `start`; a negative step would push every piece off-screen on frame one
+    const dt = clamp((now - last) / 1000, 0, 0.05);
     last = now;
     const elapsed = now - start;
     const damp = Math.exp(-drag * dt);
@@ -1240,7 +1241,7 @@ function launchConfetti(count = 160) {
       p.y += p.vy * dt;
       p.rot += p.spin * dt;
       p.flip += p.flipSpeed * dt;
-      if (p.y > h + 30) continue;
+      if (p.vy > 0 && p.y > h + 30) continue; // only falling pieces that left the bottom are done
       alive++;
       ctx.save();
       ctx.translate(p.x, p.y);
