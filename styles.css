@@ -307,6 +307,61 @@ body.loading #game {
   #game.shake { animation: none; }
 }
 
+/* Surprise guests: placeholder stick figures that pop up when the lights come on */
+#surprise-guests {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2; /* above room hotspots, below the raccoon */
+}
+.surprise-guest {
+  position: absolute;
+  color: rgba(226, 214, 192, 0.85); /* muted paper tone, matches the cutouts */
+  transform-origin: 50% 100%;
+}
+.surprise-guest .stick-figure {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Guest art: same height as a stick figure, centered on its spot */
+.surprise-guest img {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: auto;
+  height: 100%;
+  transform: translateX(-50%);
+}
+.surprise-guest-name {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 15px;
+  color: #ffe9b3;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+.chat.surprise-guest-says {
+  bottom: calc(100% + 32px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.surprise-guest.pop {
+  animation: guest-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) var(--delay, 0ms) both;
+}
+@keyframes guest-pop {
+  from { transform: translateY(30%) scale(0.8); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surprise-guest.pop { animation: none; }
+}
+
 /* Surprise confetti: above the scene and UI, below the fade */
 #confetti {
   position: absolute;

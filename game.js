@@ -48,6 +48,17 @@ const CONFIG = {
     lantern: { xPct: 84, yPct: 64, widthPct: 35 },
     shelf: { xPct: 62, yPct: 72, widthPct: 33, radius: 380 },
   },
+  surprise: {
+    // Party guests who jump out when the lights come on. Placeholders for now:
+    // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
+    guests: [
+      { name: 'person 1' },
+      { name: 'person 2', says: 'surprise!!' },
+      { name: 'person 3' },
+      { name: 'person 4', says: 'happy birthday!' },
+      { name: 'person 5' },
+    ],
+  },
   physics: {
     gravity: 1800,     // px/s^2 downward
     jumpSpeed: 900,    // initial upward speed
@@ -84,6 +95,8 @@ let autoWalkTargetX = null; // scripted walk: raccoon walks itself to this world
 let autoWalkDone = null; // resolves the scripted walk on arrival
 let surprisePending = true; // first time entering the house plays the lights-off surprise
 let cutscenePlaying = false; // locks raccoon controls while the surprise intro runs
+let surpriseGuestsEl = null; // world-layer container for the party guests
+let surpriseGuests = []; // { el, xFrac } per guest; x stored as a fraction of world width for resizes
 let overlayOpen = false; // inventory open state
 let fatherFigureOverlayOpen = false; // father figure overlay state
 let sceneTransitioning = false; // flag to prevent suitcase showing during transitions
@@ -282,7 +295,10 @@ class AssetPreloader {
       'assets/chess.webp',
       'assets/mollytea.webp',
       'assets/uparrow.webp',
-      'assets/downarrow.webp'
+      'assets/downarrow.webp',
+
+      // Surprise guest art (ready before the lights come on)
+      ...CONFIG.surprise.guests.filter(g => g.img).map(g => g.img),
 
       // Note: Project detail assets (notes, etc.) will lazy-load when needed
       // This reduces initial loading time while ensuring core functionality works
@@ -812,6 +828,7 @@ async function enterOutside() {
     // Hide back button when outside
     const backButton = document.getElementById('back-button');
     if (backButton) backButton.classList.add('hidden');
+    if (surpriseGuestsEl) hide(surpriseGuestsEl);
     // After image is set, ensure sizes reflect fit-height scaling
     await img.decode?.();
     // Use cover scaling to fill entire viewport without black bars
@@ -908,6 +925,12 @@ async function enterInside() {
     if (upstairsShelfEl) hide(upstairsShelfEl);
     if (shelfOverlayOpen) closeShelfOverlay();
 
+    // Party guests stay in the downstairs room once the surprise has happened
+    if (surpriseGuestsEl) {
+      show(surpriseGuestsEl);
+      placeSurpriseGuests();
+    }
+
     // Show chat bubble briefly when entering the house (not when returning from upstairs)
     if (skipNextInsideGreeting) {
       skipNextInsideGreeting = false;
@@ -987,10 +1010,91 @@ async function playSurpriseIntro() {
   cutscenePlaying = false;
 }
 
-// The surprise: a little shake + confetti (characters get added here later)
+// The surprise: guests jump out, a little shake + confetti
 async function startSurprise() {
+  revealSurpriseGuests();
   shakeScreen();
   launchConfetti();
+}
+
+// -------- Surprise Guests --------
+// Placeholder party guest: soft stick figure with arms up and a party hat
+function stickFigureSvg(hatColor) {
+  return `
+    <svg class="stick-figure" viewBox="0 0 100 210" aria-hidden="true">
+      <path d="M36 28 L50 4 L64 28 Z" fill="${hatColor}" opacity="0.85"/>
+      <circle cx="50" cy="5" r="4.5" fill="${hatColor}"/>
+      <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="50" cy="44" r="15"/>
+        <path d="M50 59 L50 128"/>
+        <path d="M50 76 L24 44 M50 76 L76 44"/>
+        <path d="M50 128 L32 204 M50 128 L68 204"/>
+      </g>
+    </svg>`;
+}
+
+function revealSurpriseGuests() {
+  const guests = CONFIG.surprise.guests;
+  surpriseGuestsEl = document.createElement('div');
+  surpriseGuestsEl.id = 'surprise-guests';
+  worldEl.insertBefore(surpriseGuestsEl, racEl);
+
+  // Spread guests across the visible room to the right of the raccoon
+  const { w } = viewportSize();
+  const left = racX + w * 0.14;
+  const right = cameraX + w * 0.94;
+
+  guests.forEach((guest, i) => {
+    const el = document.createElement('div');
+    el.className = 'surprise-guest pop';
+    el.style.setProperty('--delay', `${i * 90}ms`);
+
+    if (guest.img) {
+      const img = document.createElement('img');
+      img.src = versionedAsset(guest.img);
+      img.alt = guest.name;
+      img.draggable = false;
+      el.appendChild(img);
+    } else {
+      el.innerHTML = stickFigureSvg(CONFETTI_COLORS[i % CONFETTI_COLORS.length]);
+    }
+
+    const name = document.createElement('span');
+    name.className = 'surprise-guest-name';
+    name.textContent = guest.name;
+    el.appendChild(name);
+
+    if (guest.says) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat surprise-guest-says hidden';
+      bubble.textContent = guest.says;
+      el.appendChild(bubble);
+      setTimeout(() => show(bubble), 350 + i * 90);
+      setTimeout(() => hide(bubble), 3000 + i * 90);
+    }
+
+    surpriseGuestsEl.appendChild(el);
+    const t = guests.length > 1 ? i / (guests.length - 1) : 0.5;
+    surpriseGuests.push({ el, xFrac: (left + (right - left) * t) / worldW });
+  });
+
+  placeSurpriseGuests();
+}
+
+// Size and stand guests like the raccoon (its sprite's feet sit ~10% of its box below the anchor)
+function placeSurpriseGuests() {
+  if (!surpriseGuestsEl) return;
+  const racSize = racEl.offsetHeight;
+  const gh = racSize * 0.48;
+  const gw = gh * 0.5;
+  const feetY = getGroundY() + racSize * 0.1;
+  for (const g of surpriseGuests) {
+    const x = g.xFrac * worldW;
+    g.el.style.left = `${x - gw / 2}px`;
+    g.el.style.top = `${feetY - gh}px`;
+    g.el.style.width = `${gw}px`;
+    g.el.style.height = `${gh}px`;
+  }
 }
 
 function shakeScreen() {
@@ -1196,6 +1300,8 @@ async function enterUpstairs() {
     centerCameraOn(racX, racY);
 
     enableSpotlight();
+
+    if (surpriseGuestsEl) hide(surpriseGuestsEl);
 
     // Place upstairs assets in scene
     createUpstairsLantern();
@@ -2882,6 +2988,7 @@ async function startGame() {
         fitBackgroundToViewportHeight(bgEl);
         updateExitWorldFromScaled();
         updateSuitcaseWorldFromScaled();
+        if (scene === 'inside') placeSurpriseGuests();
         // rescale hotspot size on viewport changes
         if (suitcaseHotspot) {
           const s = CONFIG.inside.suitcase;
