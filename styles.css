@@ -378,6 +378,35 @@ body.loading #game {
   .surprise-guest.pop { animation: none; }
 }
 
+/* Everyone jumps along while the birthday song plays (the contact shadow stays on the floor) */
+#surprise-guests.jumping .surprise-guest > :is(img, .stick-figure, .surprise-guest-name) {
+  animation: guest-jump 0.42s cubic-bezier(0.3, 0, 0.5, 1) calc(var(--delay, 0ms) * 1.6) infinite alternate;
+}
+@keyframes guest-jump {
+  from { translate: 0 0; }
+  to { translate: 0 -12%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #surprise-guests.jumping .surprise-guest > * { animation: none; }
+}
+.song-prompt {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border: none;
+  border-radius: 999px;
+  background: #ffe9b3;
+  color: #3b2a20;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 17px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: chat-badge-nudge 1.6s ease-in-out infinite;
+}
+
 /* Guest idle thought bubbles: little paper clouds that puff in and out */
 .surprise-guest-idle {
   position: absolute;
@@ -462,6 +491,7 @@ body.loading #game {
   color: #3b2a20;
   font-family: 'Love Ya Like A Sister';
   font-size: 16px;
+  white-space: nowrap;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
   pointer-events: auto;
   cursor: pointer;
@@ -2270,4 +2300,162 @@ body.loading #game {
 /* Hide touch controls when overlays are open */
 body.overlay-open #touch-controls {
   display: none !important;
+}
+
+/* Party decorations painted into the room when the lights come on */
+#party-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  animation: decor-in 0.6s ease-out both;
+}
+@keyframes decor-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Photo album (briefcase): scrollable polaroid wall */
+#photo-album {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+  visibility: hidden;
+}
+#photo-album.open { pointer-events: auto; visibility: visible; }
+.album-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 10, 10, 0.6);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.album-panel {
+  position: relative;
+  width: min(1100px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 30px 34px 40px;
+  border-radius: 22px;
+  background: #efe2c6;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(30px) scale(0.95);
+  transition: opacity 0.25s ease, transform 0.4s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+#photo-album.open .album-backdrop { opacity: 1; }
+#photo-album.open .album-panel { opacity: 1; transform: none; }
+.album-title {
+  margin: 0 0 22px;
+  font-family: 'Love Ya Like A Sister';
+  font-weight: 400;
+  font-size: 32px;
+  color: #3b2a20;
+  text-align: center;
+}
+.album-grid { columns: 4 200px; column-gap: 22px; }
+.album-photo {
+  break-inside: avoid;
+  margin: 0 0 24px;
+  padding: 10px 10px 8px;
+  background: #fbf7ee;
+  border-radius: 3px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  transform: rotate(var(--tilt));
+  transition: transform 0.25s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.album-photo:hover { transform: rotate(0deg) scale(1.04); z-index: 1; position: relative; }
+.album-photo img, .album-photo video { width: 100%; display: block; border-radius: 2px; }
+.album-photo figcaption {
+  margin-top: 6px;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 14px;
+  color: #6b5444;
+  text-align: center;
+}
+
+/* Birthday cake in the room */
+#birthday-cake {
+  position: absolute;
+  z-index: 99; /* in front of the guests, just behind the raccoon */
+  pointer-events: none;
+  animation: decor-in 0.6s ease-out both;
+}
+#birthday-cake svg, .wish-cake svg { width: 100%; height: auto; display: block; overflow: visible; }
+#birthday-cake.can-wish .guest-chat-badge {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+  animation: chat-badge-nudge 1.6s ease-in-out 0.4s infinite;
+}
+.cake-badge { bottom: calc(100% + 18px); }
+.flame { transform-box: fill-box; transform-origin: 50% 100%; animation: flicker 0.18s ease-in-out infinite alternate; }
+@keyframes flicker { from { transform: scale(1, 1) rotate(-3deg); } to { transform: scale(0.92, 1.08) rotate(3deg); } }
+.smoke { opacity: 0; }
+.out .flame { animation: none; opacity: 0; transform: scale(0.2); transition: opacity 0.2s, transform 0.2s; }
+.out .smoke { animation: smoke-up 1.8s ease-out forwards; }
+@keyframes smoke-up {
+  0% { opacity: 0.8; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-26px); }
+}
+
+/* Wish card */
+#wish-card {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  padding: 16px;
+}
+#wish-card.open .guest-chat-backdrop { opacity: 1; }
+#wish-card.open .guest-chat-card { opacity: 1; transform: none; }
+.wish-cake { flex: 0 0 auto; width: min(280px, 60vw); }
+.wish-card .guest-chat-note { position: relative; }
+.wish-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 2px dashed #c9b28e;
+  border-radius: 14px;
+  background: #f8f0de;
+  color: #3b2a20;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 20px;
+  resize: none;
+  outline: none;
+}
+.wish-input:focus { border-color: #c9605a; }
+.wish-blow {
+  margin-top: 16px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 999px;
+  background: #c9605a;
+  color: #fbf3e2;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 19px;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+.wish-blow:hover:not(:disabled) { transform: scale(1.05); }
+.wish-blow:disabled { opacity: 0.5; cursor: default; }
+.wish-letter {
+  position: absolute;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 20px;
+  color: #3b2a20;
+  pointer-events: none;
+  animation: letter-blow 1.5s ease-out forwards;
+}
+@keyframes letter-blow {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(40deg); filter: blur(2px); }
 }

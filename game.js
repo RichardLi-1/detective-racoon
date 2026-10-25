@@ -49,6 +49,8 @@ const CONFIG = {
     shelf: { xPct: 62, yPct: 72, widthPct: 33, radius: 380 },
   },
   surprise: {
+    // Plays when the lights come on (already trimmed to its first 15s); guests jump along
+    song: 'assets/audio/birthday-song.mp3',
     // Party guests who jump out when the lights come on. Placeholders for now:
     // set `img` (e.g. 'assets/guest-name.webp') to swap a stick figure for real art.
     // Optional `depth` (0 = front row, 1 = back row) overrides the crowd's row pattern.
@@ -62,7 +64,7 @@ const CONFIG = {
       },
       {
         name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!',
-        idle: ['i planned this whole thing btw', 'who ate the last slice.', 'smile for the photo. NOW.', 'hmph. happy birthday.'],
+        idle: ['fiona i missed u soooooooooo much........... <3', 'fiona i missed u soooooooooo much........... <3', 'i planned this whole thing btw', 'who ate the last slice.', 'smile for the photo. NOW.'],
       },
       {
         name: 'michele', img: 'assets/guest-michele.webp', voice: 'assets/audio/michele.m4a',
@@ -73,7 +75,7 @@ const CONFIG = {
         idle: ['did someone say karaoke?', 'main character energy ✧', 'hehe gotcha!!', 'cake first, then dancing'],
       },
       {
-        name: 'jenna',
+        name: 'jenna', img: 'assets/guest-jenna.webp',
         idle: ['wait did i miss the cake', 'i have SO many pics of you', 'pillow fight later??', 'peace ✌ happy bday'],
         message: 'HAPPY BIRTHDAY FIONA!!! thank you for every sleepover, every pillow fight and every dumb photo. love you forever!!',
         photos: Array.from({ length: 15 }, (_, i) => `assets/photos/jenna-${i + 1}.webp`).concat('assets/photos/jenna-video.mp4'),
@@ -86,7 +88,7 @@ const CONFIG = {
       {
         // `stretch` squashes/stretches a guest's height while keeping their width (1 = normal)
         name: 'lucas', img: 'assets/guest-lucas.webp', stretch: 0.5,
-        idle: ['hi. it\'s me. lucas.', 'down here!!', 'why am i so short', 'happy birthday!!'],
+        idle: ['hi. it\'s me. lucas.', 'down here!!', 'why am i so short', 'happy birthday!!', 'bitch', 'bitch'],
       },
     ],
   },
@@ -873,6 +875,8 @@ async function enterOutside() {
     const backButton = document.getElementById('back-button');
     if (backButton) backButton.classList.add('hidden');
     if (surpriseGuestsEl) hide(surpriseGuestsEl);
+    if (partyDecorEl) hide(partyDecorEl);
+    if (cakeEl) hide(cakeEl);
     // After image is set, ensure sizes reflect fit-height scaling
     await img.decode?.();
     // Use cover scaling to fill entire viewport without black bars
@@ -974,6 +978,14 @@ async function enterInside() {
       show(surpriseGuestsEl);
       placeSurpriseGuests();
     }
+    if (partyDecorEl) {
+      show(partyDecorEl);
+      buildPartyDecor();
+    }
+    if (cakeEl) {
+      show(cakeEl);
+      placeCake();
+    }
 
     // Show chat bubble briefly when entering the house (not when returning from upstairs)
     if (skipNextInsideGreeting) {
@@ -1056,9 +1068,245 @@ async function playSurpriseIntro() {
 
 // The surprise: guests jump out, a little shake + confetti
 async function startSurprise() {
+  document.title = 'HAPPY BIRTHDAY FIONA!!!!';
   revealSurpriseGuests();
+  buildPartyDecor();
   shakeScreen();
   launchConfetti();
+  await playBirthdaySong(); // raccoon stays put (cutscene) while everyone sings
+  playGuestVoices();
+  placeCake();
+}
+
+// -------- Birthday Cake & Wish --------
+// A watercolor cake on the floor in front of the crowd. Walk up to make a wish, then blow out
+// the candles. The wish only ever lives in the text box: it is never stored or sent anywhere.
+let cakeEl = null;
+let cakeXFrac = 0;
+let nearCake = false;
+let wishOpen = false;
+let candlesOut = false;
+
+function cakeSvg() {
+  const candle = (x, c) => `
+    <g class="candle">
+      <rect x="${x - 3}" y="18" width="6" height="26" rx="2" fill="${c}"/>
+      <path class="flame" d="M${x} 2 C ${x + 6} 10 ${x + 5} 16 ${x} 18 C ${x - 5} 16 ${x - 6} 10 ${x} 2 Z" fill="#f4b942"/>
+      <path class="smoke" d="M${x} 16 q 5 -8 0 -16 q -5 -8 0 -16" stroke="#cfc6b8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </g>`;
+  return `
+    <svg viewBox="0 0 160 150" aria-hidden="true">
+      <filter id="cake-wobble"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.5"/></filter>
+      <g filter="url(#cake-wobble)">
+        <ellipse cx="80" cy="138" rx="74" ry="10" fill="#e9dcc3" opacity="0.9"/>
+        <rect x="18" y="86" width="124" height="50" rx="8" fill="#ecd29a" opacity="0.95"/>
+        <path d="M18 96 q 10 12 20 0 q 10 12 20 0 q 10 12 20 0 q 10 12 20 0 q 10 12 20 0 q 10 12 22 0 v -10 h -124 z" fill="#f1e4cc"/>
+        <rect x="36" y="46" width="88" height="44" rx="7" fill="#c9605a" opacity="0.9"/>
+        <path d="M36 54 q 8 10 16 0 q 8 10 16 0 q 8 10 16 0 q 8 10 16 0 q 8 10 16 0 q 6 8 8 0 v -8 h -88 z" fill="#f1e4cc"/>
+        <circle cx="50" cy="114" r="4" fill="#82a6c2"/><circle cx="80" cy="118" r="4" fill="#93b08c"/><circle cx="110" cy="114" r="4" fill="#b398c4"/>
+      </g>
+      ${candle(58, '#82a6c2')}${candle(80, '#b398c4')}${candle(102, '#93b08c')}
+    </svg>`;
+}
+
+function placeCake() {
+  if (!cakeEl) {
+    cakeEl = document.createElement('div');
+    cakeEl.id = 'birthday-cake';
+    cakeEl.innerHTML = `${cakeSvg()}<button class="guest-chat-badge cake-badge">make a wish <span>⏎</span></button>`;
+    cakeEl.querySelector('.cake-badge').addEventListener('click', (e) => { e.stopPropagation(); openWish(); });
+    worldEl.insertBefore(cakeEl, racEl);
+    // In front of the crowd, between the raccoon and the first row of guests
+    const { w } = viewportSize();
+    cakeXFrac = (racX + w * 0.105) / worldW;
+  }
+  const racSize = racEl.offsetHeight;
+  const cw = racSize * 0.34;
+  cakeEl.style.width = `${cw}px`;
+  cakeEl.style.left = `${cakeXFrac * worldW - cw / 2}px`;
+  cakeEl.style.top = `${getGroundY() + racSize * 0.1 - cw * (150 / 160)}px`;
+}
+
+function updateCakeProximity() {
+  const near = !!cakeEl && scene === 'inside' && !candlesOut && !wishOpen && !cutscenePlaying &&
+    Math.abs(cakeXFrac * worldW - racX) < racEl.offsetHeight * 0.25;
+  if (near !== nearCake) {
+    nearCake = near;
+    cakeEl?.classList.toggle('can-wish', near);
+    if (near) playSound(clickSound);
+  }
+}
+
+function openWish() {
+  if (wishOpen || candlesOut) return;
+  wishOpen = true;
+  keys.clear();
+  playSound(clickSound);
+  const el = document.createElement('div');
+  el.id = 'wish-card';
+  el.innerHTML = `
+    <div class="guest-chat-backdrop" data-close></div>
+    <div class="guest-chat-card wish-card">
+      <button class="guest-chat-close" data-close aria-label="Close">×</button>
+      <div class="wish-cake">${cakeSvg()}</div>
+      <div class="guest-chat-note">
+        <div class="guest-chat-from">make a <b>wish</b></div>
+        <textarea class="wish-input" rows="4" maxlength="280" placeholder="close your eyes... type your wish here" autocomplete="off" spellcheck="false"></textarea>
+        <button class="wish-blow">blow out the candles 🌬</button>
+        <div class="guest-chat-hint">your wish disappears when you blow — it's never saved anywhere</div>
+      </div>
+    </div>`;
+  document.getElementById('ui').appendChild(el);
+  const input = el.querySelector('.wish-input');
+  input.addEventListener('keydown', (e) => e.stopPropagation()); // typing shouldn't move the raccoon
+  el.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.hasAttribute('data-close')) closeWish();
+  });
+  el.querySelector('.wish-blow').addEventListener('click', () => blowOutCandles(el));
+  requestAnimationFrame(() => { el.classList.add('open'); input.focus(); });
+}
+
+function blowOutCandles(el) {
+  const input = el.querySelector('.wish-input');
+  const text = input.value;
+  input.value = ''; // gone: the wish is never kept
+  // Letters float away like they were blown off the page
+  const drift = el.querySelector('.guest-chat-note');
+  [...text.slice(0, 120)].forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.className = 'wish-letter';
+    s.textContent = ch;
+    s.style.left = `${8 + (i % 30) * 3}%`;
+    s.style.top = `${30 + Math.floor(i / 30) * 9}%`;
+    s.style.setProperty('--dx', `${80 + Math.random() * 160}px`);
+    s.style.setProperty('--dy', `${-40 - Math.random() * 120}px`);
+    s.style.animationDelay = `${i * 8}ms`;
+    drift.appendChild(s);
+    setTimeout(() => s.remove(), 1600 + i * 8);
+  });
+  candlesOut = true;
+  el.querySelector('.wish-cake').classList.add('out');
+  cakeEl?.classList.add('out');
+  cakeEl?.classList.remove('can-wish');
+  el.querySelector('.wish-blow').disabled = true;
+  el.querySelector('.guest-chat-from').innerHTML = 'your wish is on its <b>way</b> ✧';
+  launchConfetti(90);
+  setTimeout(closeWish, 2600);
+}
+
+function closeWish() {
+  const el = document.getElementById('wish-card');
+  if (el) {
+    el.querySelector('.wish-input').value = '';
+    el.classList.remove('open');
+    setTimeout(() => el.remove(), 250);
+  }
+  wishOpen = false;
+}
+
+// -------- Party Decorations --------
+// Watercolor bunting swags, hanging streamers and balloons painted across the ceiling of the room
+let partyDecorEl = null;
+
+function buildPartyDecor() {
+  if (!partyDecorEl) {
+    partyDecorEl = document.createElement('div');
+    partyDecorEl.id = 'party-decor';
+    worldEl.insertBefore(partyDecorEl, bgEl.nextSibling); // just above the background
+  }
+  const W = worldW, H = worldH;
+  const top = H * 0.035, sag = H * 0.09, swag = Math.max(220, H * 0.32);
+  const colors = CONFETTI_COLORS;
+  const parts = [];
+  let c = 0;
+
+  // Bunting: sagging strings between hang points with little flags along each curve
+  const hangs = [];
+  for (let x = 0; x <= W + swag; x += swag) hangs.push(x);
+  hangs.forEach((x0, i) => {
+    if (i === hangs.length - 1) return;
+    const x1 = hangs[i + 1];
+    const cx = (x0 + x1) / 2, cy = top + sag * 2;
+    parts.push(`<path d="M${x0} ${top} Q${cx} ${cy} ${x1} ${top}" stroke="#4a372b" stroke-width="2" fill="none" opacity="0.7"/>`);
+    for (let t = 0.08; t < 0.95; t += 0.12) {
+      const px = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t ** 2 * x1;
+      const py = (1 - t) ** 2 * top + 2 * (1 - t) * t * cy + t ** 2 * top;
+      const fw = H * 0.022, fh = H * 0.045;
+      parts.push(`<path d="M${px - fw} ${py} L${px + fw} ${py} L${px} ${py + fh} Z" fill="${colors[c++ % colors.length]}" opacity="0.85"/>`);
+    }
+  });
+
+  // Second, lower row of smaller bunting offset half a swag
+  const top2 = top + H * 0.05;
+  hangs.forEach((x0, i) => {
+    if (i === hangs.length - 1) return;
+    const a = x0 + swag / 2, b = a + swag;
+    const cx = (a + b) / 2, cy = top2 + sag * 1.6;
+    parts.push(`<path d="M${a} ${top2} Q${cx} ${cy} ${b} ${top2}" stroke="#4a372b" stroke-width="1.5" fill="none" opacity="0.6"/>`);
+    for (let t = 0.1; t < 0.95; t += 0.16) {
+      const px = (1 - t) ** 2 * a + 2 * (1 - t) * t * cx + t ** 2 * b;
+      const py = (1 - t) ** 2 * top2 + 2 * (1 - t) * t * cy + t ** 2 * top2;
+      const fw = H * 0.016, fh = H * 0.032;
+      parts.push(`<path d="M${px - fw} ${py} L${px + fw} ${py} L${px} ${py + fh} Z" fill="${colors[(c++ + 3) % colors.length]}" opacity="0.75"/>`);
+    }
+  });
+
+  // Crepe-paper streamers twisting down from every hang point (and between them)
+  hangs.forEach((x0, i) => {
+    [x0, x0 + swag / 2].forEach((x, j) => {
+      const len = H * (0.13 + ((i + j) % 4) * 0.045);
+      const wig = 10 + ((i + j) % 3) * 5;
+      let d = `M${x} ${top}`;
+      for (let s = 1; s <= 8; s++) d += ` Q${x + (s % 2 ? wig : -wig)} ${top + len * (s - 0.5) / 8} ${x} ${top + len * s / 8}`;
+      parts.push(`<path d="${d}" stroke="${colors[(i * 2 + j + 2) % colors.length]}" stroke-width="${j ? 5 : 7}" stroke-linecap="round" fill="none" opacity="0.8"/>`);
+    });
+  });
+
+  // Paper pom-poms hanging on strings between the streamers
+  hangs.forEach((x0, i) => {
+    const x = x0 + swag * 0.27, len = H * (0.1 + (i % 3) * 0.05), r = H * 0.03;
+    const col = colors[(i + 4) % colors.length];
+    parts.push(`<path d="M${x} ${top} L${x} ${top + len}" stroke="#4a372b" stroke-width="1.2" opacity="0.5"/>`);
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2;
+      parts.push(`<ellipse cx="${x + Math.cos(a) * r * 0.45}" cy="${top + len + r + Math.sin(a) * r * 0.45}" rx="${r * 0.62}" ry="${r * 0.32}" transform="rotate(${(a * 180) / Math.PI} ${x + Math.cos(a) * r * 0.45} ${top + len + r + Math.sin(a) * r * 0.45})" fill="${col}" opacity="0.55"/>`);
+    }
+  });
+
+  // "HAPPY BIRTHDAY FIONA" pennant banner swagged across the wall
+  const word = 'HAPPY BIRTHDAY FIONA';
+  const bx0 = W * 0.17, bx1 = W * 0.52, by = H * 0.17, bsag = H * 0.06;
+  const bcx = (bx0 + bx1) / 2, bcy = by + bsag * 2;
+  parts.push(`<path d="M${bx0} ${by} Q${bcx} ${bcy} ${bx1} ${by}" stroke="#4a372b" stroke-width="2" fill="none" opacity="0.7"/>`);
+  [...word].forEach((ch, k) => {
+    if (ch === ' ') return;
+    const t = (k + 0.5) / word.length;
+    const px = (1 - t) ** 2 * bx0 + 2 * (1 - t) * t * bcx + t ** 2 * bx1;
+    const py = (1 - t) ** 2 * by + 2 * (1 - t) * t * bcy + t ** 2 * by;
+    const pw = (bx1 - bx0) / word.length * 0.46, ph = pw * 2.3;
+    parts.push(`<path d="M${px - pw} ${py} L${px + pw} ${py} L${px + pw} ${py + ph * 0.75} L${px} ${py + ph} L${px - pw} ${py + ph * 0.75} Z" fill="#f1e4cc" opacity="0.95"/>`);
+    parts.push(`<text x="${px}" y="${py + ph * 0.55}" text-anchor="middle" font-family="Love Ya Like A Sister" font-size="${pw * 1.25}" fill="${colors[(k + 1) % colors.length]}" filter="none">${ch}</text>`);
+  });
+
+  // Balloon bunches floating around the upper room
+  [[W * 0.06, H * 0.2], [W * 0.56, H * 0.24], [W * 0.75, H * 0.18], [W * 0.95, H * 0.22]].forEach(([bx, by], k) => {
+    [[-26, 10], [24, 4], [0, -24]].forEach(([dx, dy], j) => {
+      const r = H * 0.035, x = bx + dx, y = by + dy;
+      const col = colors[(k * 3 + j + 1) % colors.length];
+      parts.push(`<path d="M${x} ${y + r * 1.15} q -8 ${H * 0.05} 4 ${H * 0.1} t -2 ${H * 0.08}" stroke="#4a372b" stroke-width="1.5" fill="none" opacity="0.6"/>`);
+      parts.push(`<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${r * 1.2}" fill="${col}" opacity="0.88"/>`);
+      parts.push(`<ellipse cx="${x - r * 0.35}" cy="${y - r * 0.45}" rx="${r * 0.22}" ry="${r * 0.32}" fill="#fff" opacity="0.35"/>`);
+    });
+  });
+
+  partyDecorEl.innerHTML = `
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+      <filter id="watercolor-wobble">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/>
+        <feDisplacementMap in="SourceGraphic" scale="4"/>
+      </filter>
+      <g filter="url(#watercolor-wobble)">${parts.join('')}</g>
+    </svg>`;
 }
 
 // -------- Surprise Guests --------
@@ -1142,7 +1390,36 @@ function revealSurpriseGuests() {
 
   placeSurpriseGuests();
   setTimeout(startGuestChatter, 3400); // after the opening "surprise!!" lines
-  setTimeout(playGuestVoices, 3000);
+}
+
+// Birthday song with everyone jumping along. If the browser blocks audio (no click yet),
+// a "play the song" button appears instead and the voices go ahead without it.
+// Resolves when the song ends (or right away-ish if it was blocked).
+function playBirthdaySong() {
+  return new Promise(onDone => {
+  const song = new Audio(versionedAsset(CONFIG.surprise.song));
+  song.volume = 0.7;
+  let doneCalled = false;
+  const finish = () => {
+    surpriseGuestsEl?.classList.remove('jumping');
+    if (doneCalled) return;
+    doneCalled = true;
+    onDone();
+  };
+  const start = () => song.play().then(() => {
+    surpriseGuestsEl?.classList.add('jumping');
+    song.addEventListener('ended', finish, { once: true });
+  });
+
+  start().catch(() => {
+    const btn = document.createElement('button');
+    btn.className = 'song-prompt';
+    btn.textContent = '♪ play the birthday song';
+    document.getElementById('ui').appendChild(btn);
+    btn.addEventListener('click', () => { btn.remove(); start().catch(() => {}); });
+    setTimeout(finish, 1500);
+  });
+  });
 }
 
 // Guests with a `voice` recording speak it after the surprise, with a talking bubble.
@@ -1205,7 +1482,7 @@ function startGuestChatter() {
 // Nearest chat-able guest within reach of the raccoon gets the bouncing "chat" badge
 function updateGuestProximity() {
   let best = null;
-  if (scene === 'inside' && surpriseGuestsEl && !cutscenePlaying && !guestChatOpen) {
+  if (scene === 'inside' && surpriseGuestsEl && !cutscenePlaying && !guestChatOpen && !nearCake && !wishOpen) {
     let bestDist = racEl.offsetHeight * 0.22;
     for (const g of surpriseGuests) {
       if (!canChatWith(g.guest)) continue;
@@ -1594,6 +1871,8 @@ async function enterUpstairs() {
     enableSpotlight();
 
     if (surpriseGuestsEl) hide(surpriseGuestsEl);
+    if (partyDecorEl) hide(partyDecorEl);
+    if (cakeEl) hide(cakeEl);
 
     // Place upstairs assets in scene
     createUpstairsLantern();
@@ -1642,11 +1921,53 @@ function tryExitUpstairs() {
   });
 }
 
+// -------- Photo Album (briefcase) --------
+// Scrollable wall of polaroids with every guest's photos/videos, captioned with who sent them
+let photoAlbumEl = null;
+
+function showPhotoAlbum() {
+  if (!photoAlbumEl) {
+    photoAlbumEl = document.createElement('div');
+    photoAlbumEl.id = 'photo-album';
+    photoAlbumEl.innerHTML = `
+      <div class="album-backdrop" data-close></div>
+      <div class="album-panel">
+        <button class="guest-chat-close" data-close aria-label="Close">×</button>
+        <h2 class="album-title">memories with fiona ♡</h2>
+        <div class="album-grid"></div>
+      </div>`;
+    const grid = photoAlbumEl.querySelector('.album-grid');
+    let n = 0;
+    for (const guest of CONFIG.surprise.guests) {
+      for (const src of guest.photos || []) {
+        const isVideo = /\.(mp4|webm|mov)$/i.test(src);
+        const card = document.createElement('figure');
+        card.className = 'album-photo';
+        card.style.setProperty('--tilt', `${((n++ * 37) % 7) - 3}deg`);
+        const media = document.createElement(isVideo ? 'video' : 'img');
+        media.src = versionedAsset(src);
+        media.loading = 'lazy';
+        if (isVideo) Object.assign(media, { muted: true, loop: true, autoplay: true, playsInline: true });
+        else media.alt = `photo from ${guest.name}`;
+        const cap = document.createElement('figcaption');
+        cap.textContent = `from ${guest.name}`;
+        card.append(media, cap);
+        grid.appendChild(card);
+      }
+    }
+    photoAlbumEl.addEventListener('click', (e) => {
+      if (e.target instanceof Element && e.target.hasAttribute('data-close')) closeInventory();
+    });
+    document.getElementById('ui').appendChild(photoAlbumEl);
+  }
+  requestAnimationFrame(() => photoAlbumEl.classList.add('open'));
+}
+
 function openInventory() {
   if (overlayOpen) return;
   playSound(boxSound);
   overlayOpen = true;
-  inventoryOverlay?.classList.remove('hidden');
+  showPhotoAlbum(); // the briefcase now holds everyone's photos instead of the projects
   document.body.classList.add('overlay-open');
 
   // Prevent ghost taps (iOS touch → click delay) from immediately closing
@@ -1670,6 +1991,7 @@ function closeInventory() {
   if (!overlayOpen) return;
   overlayOpen = false;
   inventoryOverlay?.classList.add('hidden');
+  photoAlbumEl?.classList.remove('open');
   document.body.classList.remove('overlay-open');
 
   // Show back button again when closing inventory (if inside)
@@ -2144,6 +2466,10 @@ window.addEventListener('keydown', (e) => {
     if (k === 'escape' || k === 'esc') { e.preventDefault(); closeShelfOverlay(); }
     return;
   }
+  if (wishOpen) {
+    if (k === 'escape' || k === 'esc') { e.preventDefault(); closeWish(); }
+    return;
+  }
   if (guestChatOpen) {
     if (k === 'escape' || k === 'esc') { e.preventDefault(); closeGuestChat(); }
     if (k === 'arrowleft' || k === 'a') { e.preventDefault(); flipGuestPhoto(-1); }
@@ -2157,7 +2483,8 @@ window.addEventListener('keydown', (e) => {
   if (k === 'enter') {
     if (scene === 'outside') tryEnterHouse();
     else if (scene === 'inside') {
-      if (nearGuest) openGuestChat(nearGuest);
+      if (nearCake) openWish();
+      else if (nearGuest) openGuestChat(nearGuest);
       else if (canOpenSuitcase) openInventory();
       else if (canGoUpstairs) tryEnterUpstairs();
       else if (canInteract) tryExitHouse();
@@ -2722,7 +3049,7 @@ function tick(ts) {
   // Movement intent (keyboard + touch)
   let vx = 0;
   let vControl = 0; // -1 up, +1 down
-  if (!cutscenePlaying && !guestChatOpen && !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen) {
+  if (!cutscenePlaying && !guestChatOpen && !wishOpen && !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen) {
     // Keyboard controls
     if (keys.has('arrowleft') || keys.has('a')) vx -= 1;
     if (keys.has('arrowright') || keys.has('d')) vx += 1;
@@ -2956,6 +3283,7 @@ function tick(ts) {
     }
   }
 
+  updateCakeProximity();
   updateGuestProximity();
 
   // Keep chat bubble following the raccoon while visible
@@ -3307,6 +3635,8 @@ async function startGame() {
       }
       keepRaccoonInRescaledWorld(prevWorldW);
       if (scene === 'inside') placeSurpriseGuests();
+      if (scene === 'inside' && partyDecorEl) buildPartyDecor();
+      if (scene === 'inside' && cakeEl) placeCake();
       centerCameraOn(racX, racY);
     });
     
