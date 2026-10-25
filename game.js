@@ -989,10 +989,70 @@ function shakeScreen() {
 }
 
 // -------- Confetti --------
-const CONFETTI_COLORS = ['#ffe9b3', '#f4b942', '#e8743b', '#d94f4f', '#6fb8d9', '#8bc34a', '#c78ee0'];
+// Muted watercolor palette pulled from the house art
+const CONFETTI_COLORS = ['#e8b04a', '#d9824a', '#c9605a', '#ecd29a', '#93b08c', '#82a6c2', '#b398c4'];
+
+// Trace a soft, wobbly blob so no two dabs share a shape
+function traceBlob(g, cx, cy, rx, ry) {
+  const n = 9;
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const j = 0.8 + Math.random() * 0.35;
+    pts.push([cx + Math.cos(a) * rx * j, cy + Math.sin(a) * ry * j]);
+  }
+  g.beginPath();
+  const [lx, ly] = pts[n - 1];
+  g.moveTo((lx + pts[0][0]) / 2, (ly + pts[0][1]) / 2);
+  for (let i = 0; i < n; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[(i + 1) % n];
+    g.quadraticCurveTo(x1, y1, (x1 + x2) / 2, (y1 + y2) / 2);
+  }
+  g.closePath();
+}
+
+// Pre-paint one watercolor dab: layered translucent washes, a lighter bloom, and a pooled edge
+function paintWatercolorDab(color, w, h, dpr) {
+  const pad = 3;
+  const cw = w + pad * 2, ch = h + pad * 2;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(cw * dpr);
+  c.height = Math.ceil(ch * dpr);
+  const g = c.getContext('2d');
+  g.scale(dpr, dpr);
+  const cx = cw / 2, cy = ch / 2;
+
+  g.fillStyle = color;
+  g.globalAlpha = 0.38;
+  for (let i = 0; i < 3; i++) {
+    traceBlob(g, cx + (Math.random() - 0.5) * 2, cy + (Math.random() - 0.5) * 2, w / 2, h / 2);
+    g.fill();
+  }
+
+  // Lighter patch where the wash dried unevenly
+  g.globalCompositeOperation = 'destination-out';
+  g.globalAlpha = 1;
+  const bx = cx + (Math.random() - 0.5) * w * 0.4;
+  const by = cy + (Math.random() - 0.5) * h * 0.4;
+  const bloom = g.createRadialGradient(bx, by, 0, bx, by, Math.max(w, h) * 0.45);
+  bloom.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+  bloom.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  g.fillStyle = bloom;
+  g.fillRect(0, 0, cw, ch);
+  g.globalCompositeOperation = 'source-over';
+
+  // Pigment pools darker along the edge of the last wash
+  g.globalAlpha = 0.5;
+  g.strokeStyle = color;
+  g.lineWidth = 1.2;
+  g.stroke();
+
+  return { img: c, w: cw, h: ch };
+}
 
 // Two cannons fire from the bottom corners; pieces flutter down and the canvas removes itself
-function launchConfetti(count = 180) {
+function launchConfetti(count = 160) {
   const canvas = document.createElement('canvas');
   canvas.id = 'confetti';
   gameEl.appendChild(canvas);
@@ -1008,19 +1068,18 @@ function launchConfetti(count = 180) {
     const fromLeft = i % 2 === 0;
     const angle = ((fromLeft ? -62 : -118) + (Math.random() - 0.5) * 36) * Math.PI / 180;
     const speed = 1800 + Math.random() * 1500;
+    const size = 12 + Math.random() * 9;
     pieces.push({
       x: fromLeft ? -10 : w + 10,
       y: h + 10,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      w: 7 + Math.random() * 6,
-      h: 11 + Math.random() * 8,
+      dab: paintWatercolorDab(CONFETTI_COLORS[i % CONFETTI_COLORS.length], size, size * (0.55 + Math.random() * 0.5), dpr),
       rot: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 10,
+      spin: (Math.random() - 0.5) * 6,
       flip: Math.random() * Math.PI * 2,
-      flipSpeed: 6 + Math.random() * 8,
+      flipSpeed: 3 + Math.random() * 4,
       sway: Math.random() * Math.PI * 2,
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
     });
   }
 
@@ -1053,9 +1112,8 @@ function launchConfetti(count = 180) {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
-      ctx.scale(1, Math.cos(p.flip)); // paper-flip shimmer
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.scale(1, 0.45 + 0.55 * Math.abs(Math.cos(p.flip))); // soft paper-like flutter
+      ctx.drawImage(p.dab.img, -p.dab.w / 2, -p.dab.h / 2, p.dab.w, p.dab.h);
       ctx.restore();
     }
 
