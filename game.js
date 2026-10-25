@@ -82,6 +82,8 @@ let canGoDownstairs = false; // track if raccoon can go downstairs
 let hasStartedMoving = false; // track if user has started moving
 let autoWalkTargetX = null; // scripted walk: raccoon walks itself to this world x
 let autoWalkDone = null; // resolves the scripted walk on arrival
+let surprisePending = true; // first time entering the house plays the lights-off surprise
+let cutscenePlaying = false; // locks raccoon controls while the surprise intro runs
 let overlayOpen = false; // inventory open state
 let fatherFigureOverlayOpen = false; // father figure overlay state
 let sceneTransitioning = false; // flag to prevent suitcase showing during transitions
@@ -166,6 +168,7 @@ function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
+function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 // Show a chat bubble above the raccoon, auto-hiding after ms
 function sayLine(text, ms) {
   if (chatTimerId) { clearTimeout(chatTimerId); chatTimerId = null; }
@@ -938,12 +941,42 @@ function tryEnterHouse() {
     suitcaseHotspot.classList.remove('hover-active');
   }
   
+  const surprise = surprisePending;
+  surprisePending = false;
   fadeOutIn(async () => {
+    if (surprise) prepareSurpriseIntro();
     await enterInside();
     // Clear transition flag after scene is fully loaded
     sceneTransitioning = false;
+    if (surprise) playSurpriseIntro();
   });
 }
+
+// -------- Surprise Intro --------
+// First time inside: lights are off, raccoon calls out, lights flick on, then the surprise.
+function prepareSurpriseIntro() {
+  cutscenePlaying = true;
+  skipNextInsideGreeting = true;
+  keys.clear();
+  if (chatTimerId) { clearTimeout(chatTimerId); chatTimerId = null; }
+  hide(chatEl);
+  spotlightEl?.classList.add('lights-off');
+}
+
+async function playSurpriseIntro() {
+  await wait(600);
+  await walkTo(racX + 280);
+  await wait(1200);
+  sayLine('hello?', 1800);
+  await wait(2400);
+  spotlightEl?.classList.remove('lights-off');
+  playSound(clickSound);
+  await startSurprise();
+  cutscenePlaying = false;
+}
+
+// Placeholder: the characters jump out here once they're added
+async function startSurprise() {}
 
 function tryExitHouse() {
   console.log('tryExitHouse called - Scene:', scene, 'canInteract:', canInteract, 'Overlays:', {
@@ -954,8 +987,8 @@ function tryExitHouse() {
     console.log('Exiting early - overlay is open');
     return; // ignore while any overlay is open
   }
-  if (scene !== 'inside') {
-    console.log('Exiting early - scene is not inside');
+  if (scene !== 'inside' || cutscenePlaying) {
+    console.log('Exiting early - scene is not inside or cutscene playing');
     return;
   }
 
@@ -1027,7 +1060,7 @@ async function enterUpstairs() {
 }
 
 function tryEnterUpstairs() {
-  if (scene !== 'inside' || !canGoUpstairs) return;
+  if (scene !== 'inside' || !canGoUpstairs || cutscenePlaying) return;
   playSound(doorSound);
   sceneTransitioning = true;
   canGoUpstairs = false;
@@ -1556,6 +1589,7 @@ window.addEventListener('keydown', (e) => {
     if (k === 'escape' || k === 'esc') { e.preventDefault(); closeShelfOverlay(); }
     return;
   }
+  if (cutscenePlaying) return;
   if (['arrowleft','arrowright','a','d'].includes(k)) {
     keys.add(k);
   }
@@ -1634,7 +1668,7 @@ function createTouchControls() {
       e.preventDefault();
       touchState[key] = true;
       btn.classList.add('active');
-      if (key === 'up' && onGround && !touchJumpTriggered) {
+      if (key === 'up' && onGround && !touchJumpTriggered && !cutscenePlaying) {
         vy = -CONFIG.physics.jumpSpeed;
         onGround = false;
         touchJumpTriggered = true;
@@ -2126,7 +2160,7 @@ function tick(ts) {
   // Movement intent (keyboard + touch)
   let vx = 0;
   let vControl = 0; // -1 up, +1 down
-  if (!overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen) {
+  if (!cutscenePlaying && !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen) {
     // Keyboard controls
     if (keys.has('arrowleft') || keys.has('a')) vx -= 1;
     if (keys.has('arrowright') || keys.has('d')) vx += 1;
@@ -2225,7 +2259,7 @@ function tick(ts) {
   } else if (scene === 'inside') {
     const e = CONFIG.inside.exit;
     const dist = distance({ x: racX, y: racY }, exitWorld);
-    const near = e ? dist <= e.radius : false;
+    const near = e && !cutscenePlaying ? dist <= e.radius : false;
     if (near && !canInteract) { canInteract = true; show(interactBtn); }
     else if (!near && canInteract) { canInteract = false; hide(interactBtn); }
     if (canInteract) {
@@ -2244,7 +2278,7 @@ function tick(ts) {
         show(suitcaseHotspot);
         placeSuitcaseAtFixedWorld(suitcaseHotspot, suitcaseWorld.x, suitcaseWorld.y);
         // Add hover effect when near or mouse is over
-        if (sNear || mouseOverSuitcase) {
+        if (!cutscenePlaying && (sNear || mouseOverSuitcase)) {
           suitcaseHotspot.classList.add('hover-active');
           canOpenSuitcase = true;
           // Show briefcase interaction prompt
@@ -2626,7 +2660,7 @@ async function startGame() {
     const upstairsButton = document.getElementById('upstairs-button');
     if (upstairsButton && backButton) {
       upstairsButton.addEventListener('click', () => {
-        if (scene !== 'inside' || sceneTransitioning) return;
+        if (scene !== 'inside' || sceneTransitioning || cutscenePlaying) return;
         playSound(doorSound);
         sceneTransitioning = true;
         fadeOutIn(async () => {

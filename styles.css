@@ -282,6 +282,16 @@ body.loading #game {
   );
 }
 
+/* Lights off (surprise intro): room goes nearly black with a faint glow on the raccoon */
+#spotlight-overlay.lights-off {
+  background: radial-gradient(
+    circle 280px at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0.85) 60%,
+    rgba(0, 0, 0, 0.97) 100%
+  );
+}
+
 /* World layer: background and raccoon live here */
 #world {
   position: absolute;
