@@ -55,7 +55,7 @@ const CONFIG = {
       { name: 'kaylin', img: 'assets/guest-kaylin.webp' },
       { name: 'catharine', img: 'assets/guest-catharine.webp', says: 'surprise!!' },
       { name: 'michele', img: 'assets/guest-michele.webp' },
-      { name: 'person 4', says: 'happy birthday!' },
+      { name: 'ashlyn', img: 'assets/guest-ashlyn.webp', says: 'happy birthday!' },
       { name: 'person 5' },
     ],
   },
