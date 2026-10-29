@@ -1409,7 +1409,7 @@ function cameraFlash() {
 }
 
 // -------- Lucas Glitch --------
-// Every 25-45s his face flashes full-screen for a split second
+// Every 25-45s his face flashes full-screen for a split second, RGB-split like a broken signal
 function scheduleLucasGlitch() {
   setTimeout(() => { lucasGlitch(); scheduleLucasGlitch(); }, 25000 + Math.random() * 20000);
 }
@@ -1419,7 +1419,7 @@ function lucasGlitch() {
   const src = versionedAsset(CONFIG.surprise.glitchImage);
   const el = document.createElement('div');
   el.id = 'lucas-glitch';
-  el.innerHTML = `<div class="glitch-layer" style="background-image:url('${src}')"></div>`;
+  el.innerHTML = ['r', 'g', 'b', 'base'].map(c => `<div class="glitch-layer ${c}" style="background-image:url('${src}')"></div>`).join('');
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 420);
 }
