@@ -378,6 +378,44 @@ body.loading #game {
   .surprise-guest.pop { animation: none; }
 }
 
+/* Upstairs scene: catharine + jenna walk/hop into place, then bonk into the player */
+.upstairs-guest {
+  transition: left 1.5s ease-in-out, top 0.5s ease-out;
+}
+.upstairs-guest.walking > img {
+  animation: walk-bob 0.36s ease-in-out infinite;
+}
+.upstairs-guest.bumping > img {
+  animation: guest-bump 0.42s ease-in infinite;
+}
+@keyframes guest-bump {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50% { translate: calc(var(--bump-dir, 1) * 24%) 0; rotate: calc(var(--bump-dir, 1) * 7deg); }
+}
+#raccoon.bumped {
+  animation: raccoon-squish 0.42s ease-in infinite;
+}
+@keyframes raccoon-squish {
+  0%, 100% { scale: 1 1; }
+  50% { scale: 0.93 1.05; }
+}
+.bonk {
+  position: absolute;
+  z-index: 101;
+  pointer-events: none;
+  font-family: 'Love Ya Like A Sister';
+  font-size: 20px;
+  color: #ffe9b3;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%) rotate(var(--tilt, 0deg));
+  animation: bonk-pop 0.7s ease-out forwards;
+}
+@keyframes bonk-pop {
+  0% { opacity: 0; scale: 0.4; }
+  25% { opacity: 1; scale: 1.15; }
+  100% { opacity: 0; scale: 1; translate: 0 -40px; }
+}
+
 /* Everyone jumps along while the birthday song plays (the contact shadow stays on the floor) */
 #surprise-guests.jumping .surprise-guest > :is(img, .stick-figure, .surprise-guest-name) {
   animation: guest-jump 0.42s cubic-bezier(0.3, 0, 0.5, 1) calc(var(--delay, 0ms) * 1.6) infinite alternate;

@@ -47,6 +47,12 @@ const CONFIG = {
     get bgSrc() { return versionedAsset('assets/upstairs.jpg'); },
     lantern: { xPct: 84, yPct: 64, widthPct: 35 },
     shelf: { xPct: 62, yPct: 72, widthPct: 33, radius: 380 },
+    // First visit plays a little scene: catharine waits on the bed (feet on the mattress),
+    // jenna barges in from the stairs, then everyone bonks into each other
+    cast: {
+      catharine: { img: 'assets/guest-catharine.webp', says: 'fiona im ready for you', bed: { xPct: 30, yPct: 70 } },
+      jenna: { img: 'assets/guest-jenna.webp', says: 'i want to participate' },
+    },
   },
   surprise: {
     // Plays when the lights come on (already trimmed to its first 15s); guests jump along
@@ -169,6 +175,8 @@ let suitcaseWorld = { x: 0, y: 0 };
 let globalPreloader = null; // Global reference to asset preloader
 let upstairsLanternEls = []; // lantern img elements in upstairs world
 let upstairsShelfEl = null; // shelf img element in upstairs world
+let upstairsCast = null; // { name: { el, bubble, xFrac, onBed, shown } } for the upstairs scene
+let upstairsCutscenePending = true; // first visit upstairs plays the catharine + jenna scene
 let shelfOverlay = null; // shelf overlay DOM element
 let shelfOverlayOpen = false; // shelf overlay open state
 let canOpenShelf = false; // raccoon is near shelf
@@ -748,6 +756,111 @@ function createUpstairsShelf() {
   });
 }
 
+function createUpstairsCast() {
+  if (upstairsCast) return;
+  upstairsCast = {};
+  for (const [name, cfg] of Object.entries(CONFIG.upstairs.cast)) {
+    const el = document.createElement('div');
+    el.className = 'surprise-guest upstairs-guest hidden';
+    el.innerHTML = `
+      <img src="${versionedAsset(cfg.img)}" alt="${name}" draggable="false">
+      <span class="surprise-guest-name">${name}</span>
+      <div class="chat surprise-guest-says hidden">${cfg.says}</div>`;
+    worldEl.insertBefore(el, racEl);
+    upstairsCast[name] = { el, bubble: el.querySelector('.chat'), xFrac: (cfg.bed?.xPct ?? 0) / 100, onBed: !!cfg.bed, shown: !!cfg.bed };
+  }
+}
+
+function placeUpstairsCast() {
+  if (!upstairsCast) return;
+  const racSize = racEl.offsetHeight;
+  // same size as a front-row party guest, standing on the same floor line
+  const h = racSize * 0.48;
+  const w = h * 0.5;
+  const floorY = getGroundY() + racSize * 0.1;
+  for (const [name, g] of Object.entries(upstairsCast)) {
+    if (!g.shown) { hide(g.el); continue; }
+    const bed = CONFIG.upstairs.cast[name].bed;
+    const feetY = g.onBed ? (bed.yPct / 100) * worldH : floorY;
+    g.el.style.left = `${g.xFrac * worldW - w / 2}px`;
+    g.el.style.top = `${feetY - h}px`;
+    g.el.style.width = `${w}px`;
+    g.el.style.height = `${h}px`;
+    show(g.el);
+  }
+}
+
+function hideUpstairsCast() {
+  if (upstairsCast) Object.values(upstairsCast).forEach(g => hide(g.el));
+}
+
+async function castSays(g, ms) {
+  show(g.bubble);
+  await wait(ms);
+  hide(g.bubble);
+}
+
+function prepareUpstairsCutscene() {
+  cutscenePlaying = true;
+  keys.clear();
+  if (chatTimerId) { clearTimeout(chatTimerId); chatTimerId = null; }
+  hide(chatEl);
+}
+
+async function playUpstairsCutscene() {
+  const { catharine, jenna } = upstairsCast;
+  const racSize = racEl.offsetHeight;
+  await wait(500);
+  await walkTo(worldW * 0.55);
+  await castSays(catharine, 2600);
+
+  // jenna walks in from the stairs on the right
+  jenna.shown = true;
+  jenna.xFrac = (worldW + racSize * 0.3) / worldW;
+  placeUpstairsCast();
+  void jenna.el.offsetWidth; // start the walk from off-screen
+  jenna.el.classList.add('walking');
+  jenna.xFrac = (racX + racSize * 0.4) / worldW;
+  placeUpstairsCast();
+  await wait(1600);
+  jenna.el.classList.remove('walking');
+  await castSays(jenna, 2400);
+
+  // catharine hops off the bed and everyone squishes together
+  catharine.onBed = false;
+  catharine.xFrac = (racX - racSize * 0.22) / worldW;
+  jenna.xFrac = (racX + racSize * 0.22) / worldW;
+  placeUpstairsCast();
+  await wait(900);
+
+  catharine.el.style.setProperty('--bump-dir', 1);
+  jenna.el.style.setProperty('--bump-dir', -1);
+  catharine.el.classList.add('bumping');
+  jenna.el.classList.add('bumping');
+  racEl.classList.add('bumped');
+  for (let i = 0; i < 9; i++) {
+    popBonk(racX - racSize * 0.11, racY - racSize * 0.2);
+    popBonk(racX + racSize * 0.11, racY - racSize * 0.2);
+    await wait(420);
+  }
+  catharine.el.classList.remove('bumping');
+  jenna.el.classList.remove('bumping');
+  racEl.classList.remove('bumped');
+  cutscenePlaying = false;
+}
+
+// little "bonk!" that pops up and floats away at a world position
+function popBonk(x, y) {
+  const el = document.createElement('span');
+  el.className = 'bonk';
+  el.textContent = 'bonk!';
+  el.style.left = `${x + (Math.random() - 0.5) * 30}px`;
+  el.style.top = `${y + (Math.random() - 0.5) * 40}px`;
+  el.style.setProperty('--tilt', `${(Math.random() - 0.5) * 30}deg`);
+  worldEl.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+}
+
 function placeUpstairsShelf() {
   if (!upstairsShelfEl) return;
   const cfg = CONFIG.upstairs.shelf;
@@ -992,6 +1105,7 @@ async function enterInside() {
     // Hide upstairs assets when back inside
     upstairsLanternEls.forEach(el => hide(el));
     if (upstairsShelfEl) hide(upstairsShelfEl);
+    hideUpstairsCast();
     if (shelfOverlayOpen) closeShelfOverlay();
 
     // Party guests stay in the downstairs room once the surprise has happened
@@ -2020,6 +2134,9 @@ async function enterUpstairs() {
     placeUpstairsLantern();
     createUpstairsShelf();
     placeUpstairsShelf();
+    createUpstairsCast();
+    placeUpstairsCast();
+    if (upstairsCutscenePending) prepareUpstairsCutscene();
 
     // Greeting arms once raccoon enters the downstairs zone, fires when it leaves
     pendingUpstairsGreeting = false;
@@ -2042,6 +2159,10 @@ function tryEnterUpstairs() {
   fadeOutIn(async () => {
     await enterUpstairs();
     sceneTransitioning = false;
+    if (upstairsCutscenePending) {
+      upstairsCutscenePending = false;
+      playUpstairsCutscene();
+    }
   });
 }
 
@@ -3373,7 +3494,7 @@ function tick(ts) {
         const mwx = mouseScreenX + cameraX;
         const mwy = mouseScreenY + cameraY;
         mouseOverShelf = mwx >= sLeft && mwx <= sRight && mwy >= sTop && mwy <= sBottom;
-        if (nearShelf || mouseOverShelf) {
+        if (!cutscenePlaying && (nearShelf || mouseOverShelf)) {
           upstairsShelfEl.classList.add('hover-active');
           canOpenShelf = true;
           canInteract = true;
@@ -3386,7 +3507,7 @@ function tick(ts) {
         }
       }
       // Downstairs check (right edge of upstairs scene)
-      const nearDownstairs = racX >= worldW - 150;
+      const nearDownstairs = !cutscenePlaying && racX >= worldW - 150;
       canGoDownstairs = nearDownstairs;
       if (nearDownstairs && !canOpenShelf) {
         upstairsGreetingArmed = true; // raccoon has been in the zone, greeting can now fire
@@ -3759,6 +3880,7 @@ async function startGame() {
         fitBackgroundToViewportCover(bgEl, 1.05); // same fit as enterUpstairs
         placeUpstairsLantern();
         placeUpstairsShelf();
+        placeUpstairsCast();
       } else {
         fitBackgroundToViewportHeight(bgEl);
         updateExitWorldFromScaled();
