@@ -20,8 +20,8 @@ const CONFIG = {
     width: 720,            // px (1.1x scaled)
     height: 720,           // px (1.1x scaled)
     speed: 550,            // px per second (faster walking)
-    get idleSrc() { return versionedAsset('assets/idle.gif'); },
-    get walkSrc() { return versionedAsset('assets/walking.gif'); },
+    get idleSrc() { return versionedAsset('assets/player.webp'); },
+    get walkSrc() { return versionedAsset('assets/player.webp'); }, // same still photo; .walking adds a bob
     // Start on the left side of the screen
     spawnOutside: { xPct: 20, yPct: 78 },   // starting point on outside image
     spawnInside: { x: 140, yFromBottom: 40 } // starting point inside (pixels)
@@ -309,8 +309,7 @@ class AssetPreloader {
       'assets/loadpusheen.gif',
       
       // Core game assets (essential for basic functionality)
-      'assets/idle.gif',
-      'assets/walking.gif', 
+      'assets/player.webp',
       'assets/outside_house.jpg',
       'assets/static_downstairs.jpg',
       
@@ -3221,6 +3220,7 @@ function tick(ts) {
 
   const moving = !overlayOpen && !fatherFigureOverlayOpen && !designOverlayOpen && !designtoOverlayOpen && !jamOverlayOpen && !lucyOverlayOpen && !revisionOverlayOpen && !aboutMeOverlayOpen && (vx !== 0 || vControl !== 0 || !onGround || vy !== 0);
   setRaccoonImage(moving ? CONFIG.raccoon.walkSrc : CONFIG.raccoon.idleSrc);
+  racEl.classList.toggle('walking', moving);
 
   // Footsteps: play when walking horizontally on the ground
   const walking = onGround && vx !== 0 && !overlayOpen;

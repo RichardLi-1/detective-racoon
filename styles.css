@@ -690,6 +690,15 @@ body.loading #game {
   z-index: 100; /* ensure raccoon is always on top of everything in world */
 }
 
+/* the sprite is a still photo, so bob it a little while walking */
+#raccoon.walking {
+  animation: walk-bob 0.36s ease-in-out infinite;
+}
+@keyframes walk-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -2.5%; }
+}
+
 /* UI layer */
 #ui {
   position: absolute;
