@@ -3650,7 +3650,6 @@ async function startGame() {
     await enterOutside();
 
     // First load: raccoon walks itself into the house
-    sayLine('its been a long day', 2600);
     walkTo(doorWorld.x).then(enterHouse);
 
     requestAnimationFrame(tick);
