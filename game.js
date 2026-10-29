@@ -1197,8 +1197,11 @@ async function playSurpriseIntro() {
   await wait(2400);
   spotlightEl?.classList.remove('lights-off');
   playSound(clickSound);
-  await startSurprise();
+  // Hand control back once the guests have popped out; the message + song keep playing
+  const surpriseDone = startSurprise();
+  await wait(1200);
   cutscenePlaying = false;
+  await surpriseDone;
 }
 
 // The surprise: guests jump out, a little shake + confetti
@@ -2153,6 +2156,11 @@ async function enterUpstairs() {
 
 function tryEnterUpstairs() {
   if (scene !== 'inside' || !canGoUpstairs || cutscenePlaying) return;
+  goUpstairs();
+}
+
+// Fade up to the bedroom; the first visit plays the catharine + jenna scene
+function goUpstairs() {
   playSound(doorSound);
   sceneTransitioning = true;
   canGoUpstairs = false;
@@ -3772,7 +3780,13 @@ async function startGame() {
     await enterOutside();
 
     // First load: raccoon walks itself into the house
-    walkTo(doorWorld.x).then(enterHouse);
+    if (new URLSearchParams(location.search).has('upstairs')) {
+      // ?upstairs link: skip the walk-in and the surprise, straight to the bedroom scene
+      surprisePending = false;
+      goUpstairs();
+    } else {
+      walkTo(doorWorld.x).then(enterHouse);
+    }
 
     requestAnimationFrame(tick);
 
@@ -3823,12 +3837,7 @@ async function startGame() {
     if (upstairsButton && backButton) {
       upstairsButton.addEventListener('click', () => {
         if (scene !== 'inside' || sceneTransitioning || cutscenePlaying) return;
-        playSound(doorSound);
-        sceneTransitioning = true;
-        fadeOutIn(async () => {
-          await enterUpstairs();
-          sceneTransitioning = false;
-        });
+        goUpstairs();
       });
       // Mirror back button visibility but only on the inside scene
       new MutationObserver(() => {
