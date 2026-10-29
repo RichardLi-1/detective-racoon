@@ -3505,8 +3505,9 @@ function createCustomCursor() {
   cursor.id = 'custom-cursor';
   document.body.appendChild(cursor);
   
-  let mouseX = 0;
-  let mouseY = 0;
+  // start off-screen until the first mousemove
+  let mouseX = -9999;
+  let mouseY = -9999;
   let isVisible = false;
   
   // Update cursor position
@@ -3735,9 +3736,6 @@ async function startGame() {
     if ('ontouchstart' in window && movementInstructionsEl) {
       movementInstructionsEl.textContent = 'please view on desktop for best experience ⋆˙⟡';
     }
-    // create custom floating cursor (desktop only — skip on touch devices)
-    if (!('ontouchstart' in window)) createCustomCursor();
-
     // Recompute layout on resize to keep full image height visible
     window.addEventListener('resize', () => {
       // Re-fit current scene
@@ -3844,6 +3842,10 @@ function waitForStartClick() {
 // Main initialization with loading screen
 (async function init() {
   // Mobile devices are now supported - game runs on all screen sizes
+
+  // create custom floating cursor up front so it shows on the "click to begin" screen
+  // (desktop only — skip on touch devices)
+  if (!('ontouchstart' in window)) createCustomCursor();
 
   try {
     // Initialize the asset preloader
