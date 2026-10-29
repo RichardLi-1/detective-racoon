@@ -380,7 +380,7 @@ body.loading #game {
 
 /* Upstairs scene: catharine + jenna walk/hop into place, then bonk into the player */
 .upstairs-guest {
-  transition: left 1.5s ease-in-out, top 0.5s ease-out;
+  transition: left 1.5s ease-in-out, top 0.5s cubic-bezier(0.3, 1.5, 0.6, 1); /* little hop up/down */
 }
 .upstairs-guest.walking > img {
   animation: walk-bob 0.36s ease-in-out infinite;

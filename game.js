@@ -47,10 +47,12 @@ const CONFIG = {
     get bgSrc() { return versionedAsset('assets/upstairs.jpg'); },
     lantern: { xPct: 84, yPct: 64, widthPct: 35 },
     shelf: { xPct: 62, yPct: 72, widthPct: 33, radius: 380 },
-    // First visit plays a little scene: catharine waits on the bed (feet on the mattress),
-    // jenna barges in from the stairs, then everyone bonks into each other
+    // Mattress top (as % of the image) and its left/right ends: you can land on it from above
+    bed: { topPct: 70, leftPct: 5, rightPct: 45 },
+    // First visit plays a little scene on the bed: catharine is waiting, fiona hops up, jenna
+    // barges in and hops up too, everyone bonks into each other, then catharine kicks jenna out
     cast: {
-      catharine: { img: 'assets/guest-catharine.webp', says: 'fiona im ready for you', bed: { xPct: 30, yPct: 70 } },
+      catharine: { img: 'assets/guest-catharine.webp', says: 'fiona im ready for you', bedXPct: 30, kickOut: 'GET OUT' },
       jenna: { img: 'assets/guest-jenna.webp', says: 'i want to participate' },
     },
   },
@@ -765,9 +767,10 @@ function createUpstairsCast() {
     el.innerHTML = `
       <img src="${versionedAsset(cfg.img)}" alt="${name}" draggable="false">
       <span class="surprise-guest-name">${name}</span>
-      <div class="chat surprise-guest-says hidden">${cfg.says}</div>`;
+      <div class="chat surprise-guest-says hidden"></div>`;
     worldEl.insertBefore(el, racEl);
-    upstairsCast[name] = { el, bubble: el.querySelector('.chat'), xFrac: (cfg.bed?.xPct ?? 0) / 100, onBed: !!cfg.bed, shown: !!cfg.bed };
+    const onBed = cfg.bedXPct !== undefined;
+    upstairsCast[name] = { el, bubble: el.querySelector('.chat'), xFrac: (cfg.bedXPct ?? 0) / 100, onBed, shown: onBed };
   }
 }
 
@@ -778,10 +781,10 @@ function placeUpstairsCast() {
   const h = racSize * 0.48;
   const w = h * 0.5;
   const floorY = getGroundY() + racSize * 0.1;
-  for (const [name, g] of Object.entries(upstairsCast)) {
+  const bedY = (CONFIG.upstairs.bed.topPct / 100) * worldH;
+  for (const g of Object.values(upstairsCast)) {
     if (!g.shown) { hide(g.el); continue; }
-    const bed = CONFIG.upstairs.cast[name].bed;
-    const feetY = g.onBed ? (bed.yPct / 100) * worldH : floorY;
+    const feetY = g.onBed ? bedY : floorY;
     g.el.style.left = `${g.xFrac * worldW - w / 2}px`;
     g.el.style.top = `${feetY - h}px`;
     g.el.style.width = `${w}px`;
@@ -794,7 +797,8 @@ function hideUpstairsCast() {
   if (upstairsCast) Object.values(upstairsCast).forEach(g => hide(g.el));
 }
 
-async function castSays(g, ms) {
+async function castSays(g, text, ms) {
+  g.bubble.textContent = text;
   show(g.bubble);
   await wait(ms);
   hide(g.bubble);
@@ -809,44 +813,83 @@ function prepareUpstairsCutscene() {
 
 async function playUpstairsCutscene() {
   const { catharine, jenna } = upstairsCast;
+  const lines = CONFIG.upstairs.cast;
   const racSize = racEl.offsetHeight;
+  const bedTop = bedTopRacY();
+  const spot = worldW * 0.27; // where fiona lands on the bed
   await wait(500);
   await walkTo(worldW * 0.55);
-  await castSays(catharine, 2600);
+  await castSays(catharine, lines.catharine.says, 2600);
 
-  // jenna walks in from the stairs on the right
+  // fiona hops up onto the bed next to catharine (high enough to clear the mattress)
+  vy = -Math.sqrt(2 * CONFIG.physics.gravity * (racY - bedTop + 60));
+  onGround = false;
+  catharine.xFrac = (spot - racSize * 0.2) / worldW;
+  placeUpstairsCast();
+  await walkTo(spot);
+  while (!onGround) await wait(50);
+
+  // jenna walks in from the stairs on the right, then hops onto the bed too
   jenna.shown = true;
   jenna.xFrac = (worldW + racSize * 0.3) / worldW;
   placeUpstairsCast();
   void jenna.el.offsetWidth; // start the walk from off-screen
   jenna.el.classList.add('walking');
-  jenna.xFrac = (racX + racSize * 0.4) / worldW;
+  jenna.xFrac = (worldW * CONFIG.upstairs.bed.rightPct / 100 + racSize * 0.25) / worldW;
   placeUpstairsCast();
   await wait(1600);
   jenna.el.classList.remove('walking');
-  await castSays(jenna, 2400);
-
-  // catharine hops off the bed and everyone squishes together
-  catharine.onBed = false;
-  catharine.xFrac = (racX - racSize * 0.22) / worldW;
-  jenna.xFrac = (racX + racSize * 0.22) / worldW;
+  await castSays(jenna, lines.jenna.says, 2400);
+  jenna.onBed = true;
+  jenna.xFrac = (spot + racSize * 0.2) / worldW;
   placeUpstairsCast();
-  await wait(900);
+  await wait(1500);
 
+  // everyone bonks into each other on the bed
   catharine.el.style.setProperty('--bump-dir', 1);
   jenna.el.style.setProperty('--bump-dir', -1);
   catharine.el.classList.add('bumping');
   jenna.el.classList.add('bumping');
   racEl.classList.add('bumped');
   for (let i = 0; i < 9; i++) {
-    popBonk(racX - racSize * 0.11, racY - racSize * 0.2);
-    popBonk(racX + racSize * 0.11, racY - racSize * 0.2);
+    popBonk(racX - racSize * 0.08, racY - racSize * 0.17);
+    popBonk(racX + racSize * 0.08, racY - racSize * 0.17);
     await wait(420);
   }
   catharine.el.classList.remove('bumping');
   jenna.el.classList.remove('bumping');
   racEl.classList.remove('bumped');
+  await wait(400);
+
+  // catharine kicks jenna out: she hops down and walks off down the stairs
+  await castSays(catharine, lines.catharine.kickOut, 1600);
+  jenna.onBed = false;
+  jenna.xFrac = (worldW * CONFIG.upstairs.bed.rightPct / 100 + racSize * 0.25) / worldW;
+  placeUpstairsCast();
+  await wait(1500);
+  jenna.el.classList.add('walking');
+  jenna.xFrac = (worldW + racSize * 0.3) / worldW;
+  placeUpstairsCast();
+  await wait(1600);
+  jenna.el.classList.remove('walking');
+  jenna.shown = false;
+  placeUpstairsCast();
   cutscenePlaying = false;
+}
+
+// Upstairs the mattress is a platform: the raccoon's y when standing on it
+function bedTopRacY() {
+  return (CONFIG.upstairs.bed.topPct / 100) * worldH - racEl.offsetHeight * 0.1;
+}
+
+// Floor under the raccoon: the bed if it's over the mattress and was above it last frame
+function raccoonGroundY(prevY) {
+  const floor = getGroundY();
+  if (scene !== 'upstairs') return floor;
+  const bed = CONFIG.upstairs.bed;
+  const top = bedTopRacY();
+  const over = racX >= (bed.leftPct / 100) * worldW && racX <= (bed.rightPct / 100) * worldW;
+  return over && prevY <= top + 1 ? top : floor;
 }
 
 // little "bonk!" that pops up and floats away at a world position
@@ -3387,9 +3430,10 @@ function tick(ts) {
     } else {
       vy += CONFIG.physics.gravity * dt;
     }
+    const prevY = racY;
     racY += vy * dt;
     // ground/ceiling collision
-    const gY = getGroundY();
+    const gY = raccoonGroundY(prevY);
     const cY = getCeilingY();
     if (racY >= gY) { racY = gY; vy = 0; onGround = true; }
     if (racY <= cY) { racY = cY; vy = 0; }
